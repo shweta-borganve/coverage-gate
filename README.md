@@ -16,6 +16,28 @@ A lightweight, custom GitHub Action that parses Cobertura XML coverage reports a
 
 Add this action to your workflow file (e.g., `.github/workflows/ci.yml`) in your project repository:
 
+```yaml
+name: CI
+
+on:
+  pull_request:
+  push:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Run your tests and generate your Cobertura coverage XML report here
+      # e.g., pytest --cov=src --cov-report=xml:coverage.xml
+
+      - name: Check Code Coverage
+        uses: YOUR_GITHUB_USERNAME/coverage-gate@v1
+        with:
+          coverage-file: coverage.xml
+          threshold: '80' 
+
 folder structure:
 coverage-gate/
 ├── .github/
