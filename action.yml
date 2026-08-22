@@ -1,0 +1,44 @@
+name: 'Coverage Gate'
+description: 'Check Cobertura XML coverage and fail below threshold'
+inputs:
+  coverage-file:
+    description: 'Path to the Cobertura XML coverage report'
+    required: true
+  threshold:
+    description: 'Minimum allowed coverage percentage'
+    required: true
+    default: '80'
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      shell: bash
+      run: |
+        cd "${{ github.action_path }}"
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Run coverage gate
+      shell: bash
+      run: |
+        cd "${{ github.action_path }}"
+        python - <<'PY'
+import sys
+from src.parser import parse_cobertura
+from src.enforcer import enforce
+
+coverage_file = "${{ inputs.coverage-file }}"
+threshold = float("${{ inputs.threshold }}")
+
+metrics = parse_cobertura(coverage_file)
+result = enforce(metrics, threshold)
+print(result.message)
+
+if not result.passed:
+    raise SystemExit(1)
+PY 
