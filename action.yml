@@ -35,7 +35,7 @@ runs:
         from src.parser import parse_cobertura
         from src.enforcer import enforce
 
-        coverage_file = "${{ inputs.coverage-file }}"
+        coverage_file = "${{ github.workspace }}/${{ inputs.coverage-file }}"
         threshold = float("${{ inputs.threshold }}")
 
         metrics = parse_cobertura(coverage_file)
