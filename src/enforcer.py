@@ -12,6 +12,9 @@ class EnforcementResult:
 
 
 def enforce(metrics: CoverageMetrics, threshold: float) -> EnforcementResult:
+    if not 0 <= threshold <= 100:
+        raise ValueError("Threshold must be between 0 and 100")
+
     passed = metrics.total_coverage >= threshold
     message = f"Coverage {metrics.total_coverage:.1f}% vs threshold {threshold}%"
 
@@ -20,4 +23,4 @@ def enforce(metrics: CoverageMetrics, threshold: float) -> EnforcementResult:
         coverage=metrics.total_coverage,
         threshold=threshold,
         message=message,
-    )
+    ) 
