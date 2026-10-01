@@ -12,6 +12,7 @@ def test_enforce_pass():
     assert result.passed is True
     assert result.coverage == 85.0
     assert result.threshold == 80.0
+    assert result.message == "Coverage 85.0% vs threshold 80.0% — PASS"
 
 
 def test_enforce_fail():
@@ -22,6 +23,7 @@ def test_enforce_fail():
     assert result.passed is False
     assert result.coverage == 75.0
     assert result.threshold == 80.0
+    assert result.message == "Coverage 75.0% vs threshold 80.0% — FAIL"
 
 
 def test_enforce_invalid_threshold_below_zero():
