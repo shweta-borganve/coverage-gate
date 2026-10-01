@@ -23,4 +23,4 @@ def enforce(metrics: CoverageMetrics, threshold: float) -> EnforcementResult:
         coverage=metrics.total_coverage,
         threshold=threshold,
         message=message,
-    ) 
+    )

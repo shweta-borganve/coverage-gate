@@ -34,4 +34,4 @@ def test_invalid_line_rate(tmp_path):
     coverage_file.write_text('<coverage line-rate="abc"></coverage>')
 
     with pytest.raises(ValueError, match="Invalid 'line-rate' value"):
-        parse_cobertura(str(coverage_file)) 
+        parse_cobertura(str(coverage_file))

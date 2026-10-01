@@ -20,17 +20,13 @@ def parse_cobertura(file_path: str) -> CoverageMetrics:
     line_rate = root.get("line-rate")
 
     if line_rate is None:
-        raise ValueError(
-            f"Missing 'line-rate' in coverage XML file: {file_path}"
-        )
+        raise ValueError(f"Missing 'line-rate' in coverage XML file: {file_path}")
 
     try:
         line_rate = float(line_rate)
     except ValueError:
-        raise ValueError(
-            f"Invalid 'line-rate' value in coverage XML file: {file_path}"
-        )
+        raise ValueError(f"Invalid 'line-rate' value in coverage XML file: {file_path}")
 
     total_coverage = line_rate * 100
 
-    return CoverageMetrics(total_coverage=total_coverage) 
+    return CoverageMetrics(total_coverage=total_coverage)
