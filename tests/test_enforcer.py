@@ -35,4 +35,4 @@ def test_enforce_invalid_threshold_above_hundred():
     metrics = CoverageMetrics(total_coverage=85.0)
 
     with pytest.raises(ValueError, match="Threshold must be between 0 and 100"):
-        enforce(metrics, 150.0) 
+        enforce(metrics, 150.0)
