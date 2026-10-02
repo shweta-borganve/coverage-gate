@@ -11,6 +11,11 @@ inputs:
     required: true
     default: '80'
 
+outputs:
+  coverage:
+    description: 'Current coverage percentage'
+    value: ${{ steps.run-coverage.outputs.coverage }}
+
 runs:
   using: 'composite'
   steps:
@@ -27,11 +32,12 @@ runs:
         pip install -r requirements.txt
 
     - name: Run coverage gate
+      id: run-coverage
       shell: bash
       run: |
         cd "${{ github.action_path }}"
         python - <<'PY'
-        import sys
+        import os
         from src.parser import parse_cobertura
         from src.enforcer import enforce
 
@@ -40,7 +46,11 @@ runs:
 
         metrics = parse_cobertura(coverage_file)
         result = enforce(metrics, threshold)
+
         print(result.message)
+
+        with open(os.environ["GITHUB_OUTPUT"], "a") as output:
+            output.write(f"coverage={result.coverage}\n")
 
         if not result.passed:
             raise SystemExit(1)
