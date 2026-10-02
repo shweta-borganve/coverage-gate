@@ -34,3 +34,15 @@ jobs:
 
       - name: Check import sorting
         run: isort --check-only .
+
+      - name: Run Coverage Gate action
+        id: coverage
+        uses: ./
+        with:
+          coverage-file: tests/fixtures/sample.xml
+          threshold: 80
+
+      - name: Verify coverage output
+        run: |
+          echo "Coverage output: ${{ steps.coverage.outputs.coverage }}"
+          test "${{ steps.coverage.outputs.coverage }}" = "85.0"
