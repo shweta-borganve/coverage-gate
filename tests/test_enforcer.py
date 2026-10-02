@@ -10,9 +10,45 @@ def test_enforce_pass():
     result = enforce(metrics, 80.0)
 
     assert result.passed is True
+    assert result.warning is True
     assert result.coverage == 85.0
     assert result.threshold == 80.0
-    assert result.message == "Coverage 85.0% vs threshold 80.0% — PASS"
+    assert (
+        result.message == "Coverage 85.0% vs threshold 80.0% — PASS — "
+        "WARNING: Coverage is within 5% of the threshold."
+    )
+
+
+def test_enforce_pass_without_warning():
+    metrics = CoverageMetrics(total_coverage=90.0)
+
+    result = enforce(metrics, 80.0)
+
+    assert result.passed is True
+    assert result.warning is False
+    assert result.coverage == 90.0
+    assert result.threshold == 80.0
+    assert result.message == "Coverage 90.0% vs threshold 80.0% — PASS"
+
+
+def test_enforce_warning():
+    metrics = CoverageMetrics(total_coverage=83.0)
+
+    result = enforce(metrics, 80.0)
+
+    assert result.passed is True
+    assert result.warning is True
+    assert result.coverage == 83.0
+    assert result.threshold == 80.0
+
+
+def test_enforce_at_threshold_warning():
+    metrics = CoverageMetrics(total_coverage=80.0)
+
+    result = enforce(metrics, 80.0)
+
+    assert result.passed is True
+    assert result.warning is True
 
 
 def test_enforce_fail():
@@ -21,6 +57,7 @@ def test_enforce_fail():
     result = enforce(metrics, 80.0)
 
     assert result.passed is False
+    assert result.warning is False
     assert result.coverage == 75.0
     assert result.threshold == 80.0
     assert result.message == "Coverage 75.0% vs threshold 80.0% — FAIL"
