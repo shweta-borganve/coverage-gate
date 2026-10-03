@@ -1,457 +1,263 @@
-Coverage Gate
+COVERAGE GATE
 
-A reusable GitHub Action that checks test coverage from a **Cobertura XML coverage report** and fails the CI pipeline when coverage is below the configured threshold.
+A small GitHub Action I built to check test coverage in CI.
 
-Why Coverage Gate?
+The action takes a Cobertura XML coverage report, reads the current line coverage, and checks it against a minimum percentage.
 
-Having tests in a project does not automatically mean that enough of the code is being tested.
+I started with a basic coverage check and then added warning, GitHub Actions output, configurable settings, and coverage regression checking.
 
-Coverage Gate provides a simple way to enforce a minimum test coverage requirement in CI/CD.
-
-For example:
+How it works
 
 text
-Project coverage: 91%
-Required coverage: 80%
-
-91% >= 80%
-        ↓
-   Coverage Gate
-        ↓
-       PASS
-
-
-If coverage is below the required threshold:
-
-text
-Project coverage: 70%
-Required coverage: 80%
-
-70% < 80%
-        ↓
-   Coverage Gate
-        ↓
-       FAIL
-
-
-This helps teams maintain a minimum level of test coverage as the codebase changes.
-
-
-
-## How It Works
-
-The action expects a coverage report in **Cobertura XML format**.
-
-The general flow is:
-
-text
-Application code
-       ↓
-     Tests
-       ↓
-pytest + coverage
-       ↓
-coverage.xml
-       ↓
-Coverage Gate
-       ↓
-Compare coverage with threshold
-       ↓
-   PASS / FAIL
-
-
-Coverage Gate reads the coverage percentage from the XML report and compares it with the configured threshold.
-
----
-
-## Features
-
-* Reusable GitHub Action
-* Reads Cobertura XML coverage reports
-* Configurable coverage threshold
-* Fails the GitHub Actions job when coverage is below the threshold
-* Can be used across multiple repositories
-* Provides clear coverage and threshold information in CI logs
-
----
-
-## Inputs
-
-| Input           | Description                               | Required | Example                        |
-| --------------- | ----------------------------------------- | -------: | ------------------------------ |
-| `coverage-file` | Path to the Cobertura XML coverage report |      Yes | `coverage-output/coverage.xml` |
-| `threshold`     | Minimum required coverage percentage      |      Yes | `80`                           |
-
----
-
-## Usage
-
-First, generate a Cobertura XML coverage report in your repository.
-
-For a Python project using pytest:
-
-```yaml
-- name: Run unit tests with coverage
-  run: |
-    pytest --cov=src --cov-report=xml:coverage-output/coverage.xml
-```
-
-Then use Coverage Gate:
-
-```yaml
-- name: Run coverage gate
-  uses: shweta-borganve/coverage-gate@v1
-  with:
-    coverage-file: coverage-output/coverage.xml
-    threshold: "80"
-```
-
-The complete flow can look like:
-
-```yaml
-name: Python CI
-
-on:
-  push:
-    branches: ["main"]
-
-jobs:
-  test:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install pytest pytest-cov
-
-      - name: Run tests with coverage
-        run: |
-          mkdir -p coverage-output
-          pytest --cov=src --cov-report=xml:coverage-output/coverage.xml
-
-      - name: Run coverage gate
-        uses: shweta-borganve/coverage-gate@v1
-        with:
-          coverage-file: coverage-output/coverage.xml
-          threshold: "80"
-```
-
----
-
-## Using Coverage Gate in Another Repository
-
-Coverage Gate is designed to be reusable.
-
-A different GitHub repository does **not** need to copy the Coverage Gate source code.
-
-It only needs to generate a compatible coverage report and call the action:
-
-```yaml
-- name: Run coverage gate
-  uses: shweta-borganve/coverage-gate@v1
-  with:
-    coverage-file: coverage-output/coverage.xml
-    threshold: "80"
-```
-
-This means the same Coverage Gate can be used by multiple repositories:
-
-```text
-                  Coverage Gate
-                       ↑
-             reusable GitHub Action
-                       │
-        ┌──────────────┼──────────────┐
-        │              │              │
-        ↓              ↓              ↓
- Billing System   Project A       Project B
-```
-
-Each repository can choose its own coverage threshold.
-
-For example:
-
-```text
-Billing System → 80%
-Project A      → 75%
-Project B      → 90%
-```
-
----
-
-## Example: Billing System Integration
-
-Coverage Gate is integrated into my **Billing System** project.
-
-The Billing System's GitHub Actions workflow first runs the tests and generates:
-
-```text
-coverage-output/coverage.xml
-```
-
-Then it passes that file to Coverage Gate:
-
-```yaml
-- name: Run coverage gate
-  uses: shweta-borganve/coverage-gate@v1
-  with:
-    coverage-file: coverage-output/coverage.xml
-    threshold: "80"
-```
-
-The flow is:
-
-```text
-Billing System
-      ↓
 pytest
-      ↓
-Coverage report
-      ↓
-coverage-output/coverage.xml
-      ↓
+  ↓
+coverage.xml
+  ↓
 Coverage Gate
-      ↓
-Compare with 80%
-      ↓
+  ↓
+read coverage
+  ↓
+check rules
+  ↓
 PASS / FAIL
-```
 
-In the Billing System CI run, the project achieved **91% coverage**, which was above the required **80% threshold**, so the Coverage Gate passed.
+For example, if the coverage is 85% and the required coverage is 80%, the check passes.
 
----
+text
+85% >= 80%  → PASS
 
-## Coverage Report Format
+If it is 75%:
 
-Coverage Gate expects a Cobertura XML report.
+text
+75% < 80%   → FAIL
 
-A coverage tool such as `pytest-cov` can generate this report:
 
-```bash
-pytest --cov=src --cov-report=xml:coverage-output/coverage.xml
-```
+Features
 
-The resulting XML contains coverage information such as the overall line coverage rate.
+- Cobertura XML coverage support
+- Minimum coverage threshold
+- Warning when coverage is close to the threshold
+- Configurable warning margin
+- Coverage regression check using a baseline
+- Configurable maximum regression
+- Coverage available as a GitHub Actions output
+- Input validation and error handling
+- pytest test suite
+- Ruff, Black and isort checks
+- GitHub Composite Action
+- Automatic releases with semantic-release
 
-Coverage Gate parses this information and converts it into a percentage for comparison.
+Inputs
+
+text
+coverage-file
+threshold
+warning-margin
+baseline-coverage
+max-regression
+
+
+Example:
+
+yaml
+- name: Run coverage gate
+  uses: shweta-borganve/coverage-gate@v1
+  with:
+    coverage-file: coverage-output/coverage.xml
+    threshold: "80"
+    warning-margin: "5"
+    baseline-coverage: "89"
+    max-regression: "5"
+
+The last two inputs are optional. They are used when I want to check whether coverage has dropped too much compared with an earlier value.
+
+Regression check
+
+The threshold and regression check are slightly different.
+
+The threshold checks:
+
+text
+Is current coverage >= required coverage?
+
+The regression check asks:
+
+text
+Did coverage drop more than the allowed amount?
 
 For example:
 
-```text
-XML line-rate = 0.91
+text
+Baseline coverage : 89%
+Current coverage  : 85%
+Allowed regression: 5%
 
-0.91 × 100 = 91%
+Drop = 4 percentage points
 
-Coverage = 91%
-Threshold = 80%
+4 <= 5
+PASS
 
-91 >= 80
-→ PASS
-```
+If the current coverage is 82%:
 
----
+text
+Baseline coverage : 89%
+Current coverage  : 82%
+Allowed regression: 5%
 
-## What Happens When the Gate Fails?
+Drop = 7 percentage points
 
-Suppose the project has:
+7 > 5
+REGRESSION
+FAIL
 
-```text
-Coverage = 65%
-Threshold = 80%
-```
 
-Coverage Gate detects that:
+A drop equal to the maximum allowed value is accepted.
 
-```text
-65 < 80
-```
+GitHub Actions output
 
-and exits with a failure status.
+The action also exposes the current coverage as an output.
 
-Because the GitHub Actions step fails, the CI job also fails.
+yaml
+- name: Run coverage gate
+  id: coverage
+  uses: shweta-borganve/coverage-gate@v1
+  with:
+    coverage-file: coverage-output/coverage.xml
+    threshold: "80"
 
-This makes the coverage requirement enforceable instead of being only informational.
+- name: Print coverage
+  run: echo "Coverage: ${{ steps.coverage.outputs.coverage }}"
 
----
+Project structure
 
-## Project Structure
-
-```text
+text
 coverage-gate/
-│
 ├── src/
-│   ├── __init__.py
 │   ├── parser.py
 │   ├── enforcer.py
 │   └── main.py
 │
 ├── tests/
-│   ├── __init__.py
 │   ├── test_parser.py
+│   ├── test_enforcer.py
+│   ├── test_main.py
 │   └── fixtures/
 │       └── sample.xml
+│
+├── .github/
+│   └── workflows/
+│       ├── pr-checks.yml
+│       └── release.yml
 │
 ├── action.yml
 ├── requirements.txt
 └── README.md
-```
 
-### `src/parser.py`
 
-Responsible for reading the Cobertura XML report and extracting the coverage information.
+parser.py handles the Cobertura XML file and converts the line-rate value into a percentage.
 
-It converts the XML `line-rate` value into a percentage.
+enforcer.py contains the coverage rules, including the threshold, warning and regression checks.
 
-Example:
+main.py provides the command-line entry point.
 
-```text
-line-rate = 0.85
-        ↓
-0.85 × 100
-        ↓
-85%
-```
+action.yml connects the Python code with GitHub Actions and defines the action inputs and output.
 
-### `src/enforcer.py`
+Running locally
 
-Responsible for applying the coverage rule.
+I used a virtual environment for the project.
+bash
+python3 -m venv .venv
+source .venv/bin/activate
 
-It compares:
+Install the development tools:
 
-```text
-actual coverage
-        vs
-required threshold
-```
-
-and determines whether the gate should pass or fail.
-
-### `src/main.py`
-
-Acts as the entry point of the Coverage Gate application.
-
-It connects the input configuration, coverage parsing and threshold enforcement.
-
-### `action.yml`
-
-Defines the project as a GitHub Action.
-
-It specifies the action's inputs and how GitHub should execute it.
-
-### `tests/`
-
-Contains unit tests for the Coverage Gate implementation.
-
-### `tests/fixtures/sample.xml`
-
-A sample Cobertura XML file used during testing.
-
-It allows the parser to be tested without depending on a real project's coverage report.
-
----
-
-## Local Development
-
-Create a virtual environment and install the dependencies:
-
-```bash
-pip install -r requirements.txt
-```
+bash
+python -m pip install pytest ruff black isort
 
 Run the tests:
 
-```bash
+bash
 pytest
-```
 
-The tests verify that the coverage XML is parsed correctly and that the coverage logic behaves as expected.
+Current test result:
 
----
+text
+32 passed
 
-## Design
+I also check the code with:
 
-Coverage Gate follows a simple separation of responsibilities:
+bash
+ruff check .
+black --check .
+isort --check-only .
+git diff --check
 
-```text
-GitHub Actions
-      ↓
-   action.yml
-      ↓
-   main.py
-      ↓
-   parser.py
-      ↓
-Read coverage.xml
-      ↓
- enforcer.py
-      ↓
-Compare coverage
-      ↓
- PASS / FAIL
-```
+Testing the CLI
 
-The parser is responsible for **reading coverage**.
+Basic check:
 
-The enforcer is responsible for **checking the rule**.
+bash
+python -m src.main tests/fixtures/sample.xml 80
 
-The GitHub Action configuration is responsible for **making the functionality reusable in CI/CD**.
+With warning margin:
 
----
+bash
+python -m src.main tests/fixtures/sample.xml 80 10
 
-## Key Benefits
+With regression checking:
 
-### 1. Reusable
+bash
+python -m src.main tests/fixtures/sample.xml 80 5 90 5
 
-The same action can be used by multiple GitHub repositories.
+The arguments are:
 
-### 2. Automated
+text
+coverage file
+threshold
+warning margin
+baseline coverage
+maximum regression
 
-The coverage check happens automatically during CI.
+Development
 
-### 3. Enforced
+I worked on the project feature by feature using Git branches and pull requests.
 
-A project cannot silently ignore a coverage requirement because the workflow fails when coverage is below the threshold.
+After making changes, I run the tests and code-quality checks locally, push the feature branch, and create a PR.
 
-### 4. Configurable
+The PR workflow runs the project's tests and checks the Coverage Gate itself.
 
-Each repository can choose its own minimum coverage threshold.
+After the PR is merged into main, semantic-release creates the release automatically based on the commit message.
 
-### 5. Separate from the Application
+The current release is:
 
-Coverage enforcement is kept outside the application code, allowing the same tool to be reused across different projects.
+text
+v1.5.0
 
----
+Feature 6 was released with:
 
-## Technologies Used
+text
+feat: add coverage regression detection
 
-* Python
-* GitHub Actions
-* pytest
-* Cobertura XML
-* XML parsing with Python
-* GitHub Action inputs
+What I learned from this project
 
----
+This project helped me get more comfortable with Python testing and GitHub Actions.
 
-## Author
+The main things I worked with were:
 
-**Shweta Boraganve**
+- Python and XML parsing
+- pytest
+- GitHub Actions
+- Composite Actions
+- Git branching and pull requests
+- CI checks
+- semantic versioning and releases
 
-GitHub: `shweta-borganve`
+I also learned how to keep the parsing part separate from the actual coverage rules, which made it easier to add new checks later.
 
-Coverage Gate repository:
+Repository
 
-`shweta-borganve/coverage-gate`
+GitHub:
 
-Billing System integration:
+`https://github.com/shweta-borganve/coverage-gate`
 
-`shweta-borganve/Billing-System`
+Shweta Boraganve
