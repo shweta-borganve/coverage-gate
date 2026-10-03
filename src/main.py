@@ -6,10 +6,7 @@ from src.parser import parse_cobertura
 
 def main():
     if len(sys.argv) < 3:
-        print(
-            "Usage: python -m src.main <file> <threshold> "
-            "[warning_margin]"
-        )
+        print("Usage: python -m src.main <file> <threshold> " "[warning_margin]")
         return 1
 
     file_path = sys.argv[1]
@@ -25,10 +22,7 @@ def main():
     try:
         warning_margin = float(warning_margin_text)
     except ValueError:
-        print(
-            "Coverage Gate Error: "
-            f"Invalid warning margin: {warning_margin_text}"
-        )
+        print("Coverage Gate Error: " f"Invalid warning margin: {warning_margin_text}")
         return 1
 
     try:

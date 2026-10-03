@@ -19,10 +19,7 @@ def test_main_uses_default_warning_margin(monkeypatch, capsys):
     captured = capsys.readouterr()
 
     assert result == 0
-    assert (
-        "WARNING: Coverage is within 5.0% of the threshold."
-        in captured.out
-    )
+    assert "WARNING: Coverage is within 5.0% of the threshold." in captured.out
 
 
 def test_main_uses_custom_warning_margin(monkeypatch, capsys):
@@ -42,10 +39,7 @@ def test_main_uses_custom_warning_margin(monkeypatch, capsys):
     captured = capsys.readouterr()
 
     assert result == 0
-    assert (
-        "WARNING: Coverage is within 10.0% of the threshold."
-        in captured.out
-    )
+    assert "WARNING: Coverage is within 10.0% of the threshold." in captured.out
 
 
 def test_main_invalid_threshold(monkeypatch, capsys):

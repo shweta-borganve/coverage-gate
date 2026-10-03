@@ -14,8 +14,7 @@ def test_enforce_pass():
     assert result.coverage == 85.0
     assert result.threshold == 80.0
     assert (
-        result.message
-        == "Coverage 85.0% vs threshold 80.0% — PASS — "
+        result.message == "Coverage 85.0% vs threshold 80.0% — PASS — "
         "WARNING: Coverage is within 5.0% of the threshold."
     )
 

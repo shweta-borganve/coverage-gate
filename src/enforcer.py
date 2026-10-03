@@ -37,8 +37,7 @@ def enforce(
 
     if warning:
         message += (
-            " — WARNING: Coverage is within "
-            f"{warning_margin}% of the threshold."
+            " — WARNING: Coverage is within " f"{warning_margin}% of the threshold."
         )
 
     return EnforcementResult(
