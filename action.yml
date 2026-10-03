@@ -16,6 +16,16 @@ inputs:
     required: false
     default: '5'
 
+  baseline-coverage:
+    description: 'Baseline coverage percentage for regression detection'
+    required: false
+    default: ''
+
+  max-regression:
+    description: 'Maximum allowed coverage regression in percentage points'
+    required: false
+    default: '5'
+
 outputs:
   coverage:
     description: 'Current coverage percentage'
@@ -50,8 +60,19 @@ runs:
         threshold = float("${{ inputs.threshold }}")
         warning_margin = float("${{ inputs.warning-margin }}")
 
+        baseline_text = "${{ inputs.baseline-coverage }}"
+        baseline_coverage = float(baseline_text) if baseline_text else None
+
+        max_regression = float("${{ inputs.max-regression }}")
+
         metrics = parse_cobertura(coverage_file)
-        result = enforce(metrics, threshold, warning_margin)
+        result = enforce(
+            metrics,
+            threshold,
+            warning_margin,
+            baseline_coverage,
+            max_regression,
+        )
 
         print(result.message)
 
