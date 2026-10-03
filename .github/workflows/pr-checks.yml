@@ -42,6 +42,8 @@ jobs:
           coverage-file: tests/fixtures/sample.xml
           threshold: 80
           warning-margin: 10
+          baseline-coverage: 89
+          max-regression: 5
 
       - name: Verify coverage output
         run: |
