@@ -11,6 +11,11 @@ inputs:
     required: true
     default: '80'
 
+  warning-margin:
+    description: 'Coverage warning margin in percentage points'
+    required: false
+    default: '5'
+
 outputs:
   coverage:
     description: 'Current coverage percentage'
@@ -43,9 +48,10 @@ runs:
 
         coverage_file = "${{ github.workspace }}/${{ inputs.coverage-file }}"
         threshold = float("${{ inputs.threshold }}")
+        warning_margin = float("${{ inputs.warning-margin }}")
 
         metrics = parse_cobertura(coverage_file)
-        result = enforce(metrics, threshold)
+        result = enforce(metrics, threshold, warning_margin)
 
         print(result.message)
 

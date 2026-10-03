@@ -12,14 +12,21 @@ class EnforcementResult:
     message: str
 
 
-def enforce(metrics: CoverageMetrics, threshold: float) -> EnforcementResult:
+def enforce(
+    metrics: CoverageMetrics,
+    threshold: float,
+    warning_margin: float = 5.0,
+) -> EnforcementResult:
     if not 0 <= threshold <= 100:
         raise ValueError("Threshold must be between 0 and 100")
+
+    if not 0 <= warning_margin <= 100:
+        raise ValueError("Warning margin must be between 0 and 100")
 
     passed = metrics.total_coverage >= threshold
 
     margin = metrics.total_coverage - threshold
-    warning = passed and margin <= 5
+    warning = passed and margin <= warning_margin
 
     status = "PASS" if passed else "FAIL"
 
@@ -29,7 +36,9 @@ def enforce(metrics: CoverageMetrics, threshold: float) -> EnforcementResult:
     )
 
     if warning:
-        message += " — WARNING: Coverage is within 5% of the threshold."
+        message += (
+            " — WARNING: Coverage is within " f"{warning_margin}% of the threshold."
+        )
 
     return EnforcementResult(
         passed=passed,
