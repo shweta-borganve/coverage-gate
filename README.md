@@ -261,3 +261,31 @@ GitHub:
 `https://github.com/shweta-borganve/coverage-gate`
 
 Shweta Boraganve
+
+## Docker
+
+Docker can be used to run the Coverage Gate application and its test suite in a container.
+
+### Build the Docker image
+
+```bash
+docker build -t coverage-gate:local .
+```
+
+### Run Coverage Gate
+
+Run the application against the sample Cobertura XML report with a minimum coverage threshold of 80%:
+
+```bash
+docker run --rm coverage-gate:local tests/fixtures/sample.xml 80
+```
+
+### Run the test suite with Docker Compose
+
+```bash
+docker compose run --build --rm tests
+```
+
+This command builds the image if needed, runs the pytest suite inside a container, and removes the test container after execution.
+
+The Dockerfile configures the image to run the Coverage Gate application by default. Docker Compose overrides the entrypoint to run the test suite instead.
