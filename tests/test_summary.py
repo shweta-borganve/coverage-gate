@@ -22,6 +22,7 @@ def test_summary_includes_coverage_and_pass_status():
     assert "**Warning:** No" in summary
     assert "Not checked (no baseline configured)" in summary
 
+
 def test_summary_includes_fail_status():
     result = EnforcementResult(
         passed=False,
@@ -39,6 +40,7 @@ def test_summary_includes_fail_status():
     assert "**Status:** FAIL" in summary
     assert "**Coverage:** 70.0%" in summary
     assert "**Required threshold:** 80.0%" in summary
+
 
 def test_summary_includes_warning_status():
     result = EnforcementResult(

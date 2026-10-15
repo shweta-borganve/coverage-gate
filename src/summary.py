@@ -10,11 +10,8 @@ def generate_summary(result):
         f"- **Warning:** {warning_status}",
     ]
 
-
     if result.baseline_coverage is None:
-        summary_lines.append(
-            "- **Regression:** Not checked (no baseline configured)"
-        )
+        summary_lines.append("- **Regression:** Not checked (no baseline configured)")
     elif result.regression:
         summary_lines.append(
             f"- **Regression:** Yes — dropped "
@@ -22,8 +19,6 @@ def generate_summary(result):
             f"from baseline {result.baseline_coverage:.1f}%"
         )
     else:
-        summary_lines.append(
-            "- **Regression:** No — within the allowed limit"
-        )
+        summary_lines.append("- **Regression:** No — within the allowed limit")
 
     return "\n".join(summary_lines) + "\n"
