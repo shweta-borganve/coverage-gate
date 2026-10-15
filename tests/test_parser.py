@@ -35,3 +35,25 @@ def test_invalid_line_rate(tmp_path):
 
     with pytest.raises(ValueError, match="Invalid 'line-rate' value"):
         parse_cobertura(str(coverage_file))
+
+
+def test_unsupported_root_element():
+    with pytest.raises(ValueError, match="Unsupported coverage report root"):
+        parse_cobertura("tests/fixtures/unsupported.xml")
+
+
+@pytest.mark.parametrize("line_rate", ["-0.2", "1.5", "NaN", "inf", "-inf"])
+def test_out_of_range_line_rate(tmp_path, line_rate):
+    coverage_file = tmp_path / "out-of-range.xml"
+    coverage_file.write_text(f'<coverage line-rate="{line_rate}"></coverage>')
+
+    with pytest.raises(ValueError):
+        parse_cobertura(str(coverage_file))
+
+
+def test_empty_xml_report(tmp_path):
+    coverage_file = tmp_path / "empty.xml"
+    coverage_file.write_text("")
+
+    with pytest.raises(ValueError):
+        parse_cobertura(str(coverage_file))

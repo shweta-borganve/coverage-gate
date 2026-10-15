@@ -1,3 +1,4 @@
+import math
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 
@@ -17,6 +18,9 @@ def parse_cobertura(file_path: str) -> CoverageMetrics:
 
     root = tree.getroot()
 
+    if root.tag != "coverage":
+        raise ValueError(f"Unsupported coverage report root: {root.tag}")
+
     line_rate = root.get("line-rate")
 
     if line_rate is None:
@@ -26,6 +30,12 @@ def parse_cobertura(file_path: str) -> CoverageMetrics:
         line_rate = float(line_rate)
     except ValueError:
         raise ValueError(f"Invalid 'line-rate' value in coverage XML file: {file_path}")
+
+    if not math.isfinite(line_rate) or not 0 <= line_rate <= 1:
+        raise ValueError(
+            f"Invalid 'line-rate' value in coverage XML file: {file_path}. "
+            "Expected a value between 0 and 1."
+        )
 
     total_coverage = line_rate * 100
 
