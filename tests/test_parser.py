@@ -57,3 +57,75 @@ def test_empty_xml_report(tmp_path):
 
     with pytest.raises(ValueError):
         parse_cobertura(str(coverage_file))
+
+
+def test_parse_line_coverage(tmp_path):
+    coverage_file = tmp_path / "line-coverage.xml"
+    coverage_file.write_text(
+        """<?xml version="1.0"?>
+        <coverage line-rate="0.67">
+            <packages>
+                <package name="src">
+                    <classes>
+                        <class filename="src/parser.py">
+                            <lines>
+                                <line number="10" hits="1"/>
+                                <line number="11" hits="0"/>
+                                <line number="12" hits="2"/>
+                            </lines>
+                        </class>
+                    </classes>
+                </package>
+            </packages>
+        </coverage>
+        """,
+        encoding="utf-8",
+    )
+
+    from src.parser import parse_line_coverage
+
+    result = parse_line_coverage(str(coverage_file))
+
+    assert result == {
+        "src/parser.py": {
+            10: True,
+            11: False,
+            12: True,
+        }
+    }
+
+
+@pytest.mark.parametrize(
+    ("number", "hits"),
+    [
+        ("0", "1"),
+        ("-1", "1"),
+        ("10", "-1"),
+        ("abc", "1"),
+        ("10", "abc"),
+    ],
+)
+def test_parse_line_coverage_rejects_invalid_line_data(tmp_path, number, hits):
+    coverage_file = tmp_path / "invalid-line-data.xml"
+    coverage_file.write_text(
+        f"""<coverage line-rate="0.5">
+            <packages>
+                <package name="src">
+                    <classes>
+                        <class filename="src/parser.py">
+                            <lines>
+                                <line number="{number}" hits="{hits}"/>
+                            </lines>
+                        </class>
+                    </classes>
+                </package>
+            </packages>
+        </coverage>
+        """,
+        encoding="utf-8",
+    )
+
+    from src.parser import parse_line_coverage
+
+    with pytest.raises(ValueError):
+        parse_line_coverage(str(coverage_file))
