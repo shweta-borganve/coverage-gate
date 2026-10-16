@@ -55,6 +55,7 @@ runs:
         import os
         from src.parser import parse_cobertura
         from src.enforcer import enforce
+        from src.summary import generate_summary
 
         coverage_file = "${{ github.workspace }}/${{ inputs.coverage-file }}"
         threshold = float("${{ inputs.threshold }}")
@@ -75,6 +76,12 @@ runs:
         )
 
         print(result.message)
+
+        summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+
+        if summary_path:
+            with open(summary_path, "a", encoding="utf-8") as summary_file:
+                summary_file.write(generate_summary(result))
 
         with open(os.environ["GITHUB_OUTPUT"], "a") as output:
             output.write(f"coverage={result.coverage}\n")
