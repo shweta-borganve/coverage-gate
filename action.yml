@@ -46,7 +46,7 @@ runs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
 
-    - name: Run coverage gate
+    - name: Run Coverage Gate
       id: run-coverage
       shell: bash
       run: |
@@ -81,7 +81,9 @@ runs:
 
         if summary_path:
             with open(summary_path, "a", encoding="utf-8") as summary_file:
-                summary_file.write(generate_summary(result))
+                summary_file.write(
+                    generate_summary(result, metrics.file_coverage)
+                )
 
         with open(os.environ["GITHUB_OUTPUT"], "a") as output:
             output.write(f"coverage={result.coverage}\n")

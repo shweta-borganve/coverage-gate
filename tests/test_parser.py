@@ -57,3 +57,35 @@ def test_empty_xml_report(tmp_path):
 
     with pytest.raises(ValueError):
         parse_cobertura(str(coverage_file))
+
+
+def test_parse_per_file_coverage():
+    metrics = parse_cobertura("tests/fixtures/per_file.xml")
+
+    assert metrics.total_coverage == 80.0
+    assert metrics.file_coverage == {
+        "src/billing.py": 90.0,
+        "src/database.py": 60.0,
+    }
+
+
+def test_invalid_per_file_line_rate(tmp_path):
+    coverage_file = tmp_path / "invalid-per-file.xml"
+    coverage_file.write_text(
+        '<coverage line-rate="0.80">'
+        '<class filename="src/billing.py" line-rate="abc"/>'
+        "</coverage>"
+    )
+
+    metrics = parse_cobertura(str(coverage_file))
+
+    assert metrics.total_coverage == 80.0
+    assert metrics.file_coverage == {}
+
+
+def test_parse_duplicate_filenames():
+    metrics = parse_cobertura("tests/fixtures/duplicate_filenames.xml")
+
+    assert metrics.file_coverage == {
+        "src/billing.py": 60.0,
+    }
