@@ -76,7 +76,6 @@ def test_summary_includes_regression_details():
     assert "**Regression:** Yes" in summary
     assert "5.0 percentage points" in summary
     assert "85.0%" in summary
-feature/per-file-coverage
 
 
 def test_summary_includes_per_file_coverage():
@@ -102,5 +101,3 @@ def test_summary_includes_per_file_coverage():
     assert "| File | Coverage |" in summary
     assert "| `src/billing.py` | 90.0% |" in summary
     assert "| `src/database.py` | 60.0% |" in summary
-
-main
