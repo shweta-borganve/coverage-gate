@@ -64,8 +64,8 @@ def test_parse_per_file_coverage():
 
     assert metrics.total_coverage == 80.0
     assert metrics.file_coverage == {
-        "src/billing.py": 90.0,
-        "src/database.py": 60.0,
+        "src/module_a.py": 90.0,
+        "src/module_b.py": 60.0,
     }
 
 
@@ -73,7 +73,7 @@ def test_invalid_per_file_line_rate(tmp_path):
     coverage_file = tmp_path / "invalid-per-file.xml"
     coverage_file.write_text(
         '<coverage line-rate="0.80">'
-        '<class filename="src/billing.py" line-rate="abc"/>'
+        '<class filename="src/module_a.py" line-rate="abc"/>'
         "</coverage>"
     )
 
@@ -87,5 +87,5 @@ def test_parse_duplicate_filenames():
     metrics = parse_cobertura("tests/fixtures/duplicate_filenames.xml")
 
     assert metrics.file_coverage == {
-        "src/billing.py": 60.0,
+        "src/module_a.py": 60.0,
     }
