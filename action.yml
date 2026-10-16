@@ -81,13 +81,9 @@ runs:
 
         if summary_path:
             with open(summary_path, "a", encoding="utf-8") as summary_file:
-
                 summary_file.write(
                     generate_summary(result, metrics.file_coverage)
                 )
-
-                summary_file.write(generate_summary(result))
-
 
         with open(os.environ["GITHUB_OUTPUT"], "a") as output:
             output.write(f"coverage={result.coverage}\n")

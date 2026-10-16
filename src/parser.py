@@ -62,7 +62,10 @@ def parse_cobertura(file_path: str) -> CoverageMetrics:
             except ValueError:
                 continue
 
-            file_lines.setdefault(filename, {})[line_number] = hits > 0
+            line_coverage = file_lines.setdefault(filename, {})
+            line_coverage[line_number] = (
+                line_coverage.get(line_number, False) or hits > 0
+            )
 
     file_coverage = {
         filename: sum(covered_lines.values()) / len(covered_lines) * 100
