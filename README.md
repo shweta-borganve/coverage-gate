@@ -1,291 +1,361 @@
-COVERAGE GATE
+# COVERAGE GATE
 
-A small GitHub Action I built to check test coverage in CI.
+**Coverage Gate** is a reusable GitHub Composite Action that checks Python test coverage from a Cobertura XML report and enforces configurable coverage rules in CI.
 
-The action takes a Cobertura XML coverage report, reads the current line coverage, and checks it against a minimum percentage.
+It helps teams maintain a minimum coverage level, identify potential coverage regressions, and review per-file coverage results directly in GitHub Actions.
 
-I started with a basic coverage check and then added warning, GitHub Actions output, configurable settings, and coverage regression checking.
+## Features
 
-How it works
+- Parses Cobertura XML coverage reports.
+- Enforces a configurable minimum line-coverage threshold.
+- Warns when coverage approaches the configured threshold.
+- Supports baseline coverage and configurable regression limits.
+- Reports overall and per-file coverage in the GitHub Actions job summary.
+- Exposes the current coverage percentage as a GitHub Actions output.
+- Validates coverage report data and handles invalid or missing reports.
+- Includes automated tests and code-quality checks.
+- Supports local development and Docker-based testing.
+- Uses GitHub Actions for CI and automated release workflows.
 
-text
-pytest
-  ↓
-coverage.xml
-  ↓
+## How It Works
+Test Suite
+    |
+    v
+Cobertura XML Report
+    |
+    v
 Coverage Gate
-  ↓
-read coverage
-  ↓
-check rules
-  ↓
-PASS / FAIL
-
-For example, if the coverage is 85% and the required coverage is 80%, the check passes.
-
-text
-85% >= 80%  → PASS
-
-If it is 75%:
-
-text
-75% < 80%   → FAIL
+    |
+    v
+Parse Coverage Data
+    |
+    v
+Evaluate Coverage Rules
+    |
+    +----> GitHub Actions Summary
+    |
+    +----> Coverage Output
+    |
+    v
+    PASS / FAIL
 
 
-Features
+Coverage Gate consumes an existing coverage report. It does not calculate code coverage itself; the test and coverage tools generate the report.
 
-- Cobertura XML coverage support
-- Minimum coverage threshold
-- Warning when coverage is close to the threshold
-- Configurable warning margin
-- Coverage regression check using a baseline
-- Configurable maximum regression
-- Coverage available as a GitHub Actions output
-- Input validation and error handling
-- pytest test suite
-- Ruff, Black and isort checks
-- GitHub Composite Action
-- Automatic releases with semantic-release
+For example, if the report contains a line-rate of `0.85`, the overall line coverage is 85%.
 
-Inputs
+- Required coverage: 80% → PASS
+- Required coverage: 90% → FAIL
 
-text
-coverage-file
-threshold
-warning-margin
-baseline-coverage
-max-regression
+## Requirements
 
+- A GitHub repository using GitHub Actions.
+- Python 3.11 or later for local development.
+- A valid Cobertura XML coverage report.
+- Docker and Docker Compose are optional for container-based development and testing.
 
-Example:
+## GitHub Actions Usage
+
+Generate a Cobertura XML report in your repository, then add Coverage Gate as a step in your workflow.
 
 yaml
-- name: Run coverage gate
+name: Test and Coverage
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest pytest-cov
+
+      - name: Run tests and generate coverage report
+        run: |
+          pytest --cov=src --cov-report=xml:coverage.xml
+
+      - name: Enforce coverage requirements
+        uses: shweta-borganve/coverage-gate@v1
+        with:
+          coverage-file: coverage.xml
+          threshold: "80"
+          warning-margin: "5"
+
+
+Adjust the test command and coverage target to match your repository. The coverage report must exist before the Coverage Gate step runs.
+
+## Configuration
+
+Coverage Gate accepts the following inputs:
+
+| Input | Required | Default | Description |
+|---|---|---|---|
+| `coverage-file` | Yes | — | Path to the Cobertura XML coverage report, relative to the workspace. |
+| `threshold` | Yes | `80` | Minimum allowed line-coverage percentage. |
+| `warning-margin` | No | `5` | Margin in percentage points used for coverage warnings near the threshold. |
+| `baseline-coverage` | No | Empty | Previous coverage percentage used for regression detection. |
+| `max-regression` | No | `5` | Maximum allowed coverage decrease in percentage points. |
+
+### Example: Configure all inputs
+
+- name: Coverage Gate
   uses: shweta-borganve/coverage-gate@v1
   with:
-    coverage-file: coverage-output/coverage.xml
+    coverage-file: coverage.xml
     threshold: "80"
     warning-margin: "5"
     baseline-coverage: "89"
     max-regression: "5"
 
-The last two inputs are optional. They are used when I want to check whether coverage has dropped too much compared with an earlier value.
 
-Regression check
+The baseline input is optional. Provide it when you want to compare current coverage against a known previous value.
 
-The threshold and regression check are slightly different.
+## Coverage Threshold and Regression Detection
 
-The threshold checks:
+These rules serve different purposes.
 
-text
-Is current coverage >= required coverage?
+### 1. Minimum coverage threshold
 
-The regression check asks:
-
-text
-Did coverage drop more than the allowed amount?
+The threshold checks whether current coverage meets the minimum requirement.
 
 For example:
 
-text
-Baseline coverage : 89%
-Current coverage  : 85%
-Allowed regression: 5%
 
-Drop = 4 percentage points
+Current coverage: 85%
+Required coverage: 80%
 
-4 <= 5
-PASS
-
-If the current coverage is 82%:
-
-text
-Baseline coverage : 89%
-Current coverage  : 82%
-Allowed regression: 5%
-
-Drop = 7 percentage points
-
-7 > 5
-REGRESSION
-FAIL
+85% >= 80%  -> PASS
 
 
-A drop equal to the maximum allowed value is accepted.
+If current coverage is below the threshold, the gate fails.
 
-GitHub Actions output
+### 2. Coverage regression
 
-The action also exposes the current coverage as an output.
+Regression detection compares current coverage against the supplied baseline.
+
+For example:
+
+
+Baseline coverage: 89%
+Current coverage: 85%
+Maximum regression: 5 percentage points
+
+Coverage drop: 4 percentage points
+Result: PASS
+
+
+If the decrease exceeds the configured maximum regression, the gate fails.
+
+A passing regression check does not replace the minimum threshold check; both rules can apply.
+
+## GitHub Actions Output
+
+Coverage Gate exposes the current coverage percentage through the `coverage` output.
 
 yaml
-- name: Run coverage gate
+- name: Run Coverage Gate
   id: coverage
   uses: shweta-borganve/coverage-gate@v1
   with:
-    coverage-file: coverage-output/coverage.xml
+    coverage-file: coverage.xml
     threshold: "80"
 
-- name: Print coverage
-  run: echo "Coverage: ${{ steps.coverage.outputs.coverage }}"
+- name: Display coverage
+  run: echo "Current coverage: ${{ steps.coverage.outputs.coverage }}%"
 
-Project structure
 
-text
+## Coverage Summary
+
+Coverage Gate writes a summary to the GitHub Actions job summary.
+
+The summary can include:
+
+- Overall coverage percentage.
+- The configured threshold and evaluation result.
+- Per-file line-coverage percentages when per-file data is available.
+
+The per-file results help identify which source files have lower coverage and may need additional tests.
+
+## Project Structure
+
 coverage-gate/
 ├── src/
+│   ├── __init__.py
 │   ├── parser.py
 │   ├── enforcer.py
-│   └── main.py
-│
+│   ├── main.py
+│   └── summary.py
 ├── tests/
+│   ├── fixtures/
+│   │   ├── sample.xml
+│   │   ├── per_file.xml
+│   │   ├── duplicate_filenames.xml
+│   │   └── unsupported.xml
 │   ├── test_parser.py
-│   ├── test_enforcer.py
-│   ├── test_main.py
-│   └── fixtures/
-│       └── sample.xml
-│
+│   └── ...
 ├── .github/
 │   └── workflows/
-│       ├── pr-checks.yml
-│       └── release.yml
-│
 ├── action.yml
+├── Dockerfile
+├── compose.yaml
 ├── requirements.txt
 └── README.md
 
 
-parser.py handles the Cobertura XML file and converts the line-rate value into a percentage.
+- **`parser.py`** — Reads and validates Cobertura XML data, including overall and per-file line coverage.
+- **`enforcer.py`** — Evaluates the configured coverage threshold, warning margin, and regression rules.
+- **`summary.py`** — Builds the coverage summary for GitHub Actions.
+- **`main.py`** — Provides the local command-line entry point.
+- **`action.yml`** — Defines the reusable GitHub Composite Action, its inputs, and its output.
 
-enforcer.py contains the coverage rules, including the threshold, warning and regression checks.
+## Run Locally
 
-main.py provides the command-line entry point.
+### 1. Clone the repository
 
-action.yml connects the Python code with GitHub Actions and defines the action inputs and output.
 
-Running locally
+git clone https://github.com/shweta-borganve/coverage-gate.git
+cd coverage-gate
 
-I used a virtual environment for the project.
-bash
+
+### 2. Create and activate a virtual environment
+
+
 python3 -m venv .venv
 source .venv/bin/activate
 
-Install the development tools:
+On Windows PowerShell, activate it with:
 
-bash
-python -m pip install pytest ruff black isort
 
-Run the tests:
+.venv\Scripts\Activate.ps1
 
-bash
-pytest
 
-Current test result:
+### 3. Install dependencies
 
-text
-32 passed
 
-I also check the code with:
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+pip install pytest ruff black isort
 
-bash
+
+### 4. Run the tests
+
+
+pytest -v
+
+
+### 5. Run code-quality checks
+
+
 ruff check .
 black --check .
-isort --check-only .
+isort --check-only src tests
 git diff --check
 
-Testing the CLI
 
-Basic check:
+## Run the CLI
 
-bash
+The local CLI accepts a coverage report and the threshold, with optional arguments for warning and regression checks.
+
+Basic example:
+
+
 python -m src.main tests/fixtures/sample.xml 80
 
-With warning margin:
 
-bash
+With a warning margin:
+
+
 python -m src.main tests/fixtures/sample.xml 80 10
 
-With regression checking:
 
-bash
+With baseline and regression settings:
+
+
 python -m src.main tests/fixtures/sample.xml 80 5 90 5
 
 The arguments are:
 
-text
-coverage file
-threshold
-warning margin
-baseline coverage
-maximum regression
-
-Development
-
-I worked on the project feature by feature using Git branches and pull requests.
-
-After making changes, I run the tests and code-quality checks locally, push the feature branch, and create a PR.
-
-The PR workflow runs the project's tests and checks the Coverage Gate itself.
-
-After the PR is merged into main, semantic-release creates the release automatically based on the commit message.
-
-The current release is:
-
-text
-v1.5.0
-
-Feature 6 was released with:
-
-text
-feat: add coverage regression detection
-
-What I learned from this project
-
-This project helped me get more comfortable with Python testing and GitHub Actions.
-
-The main things I worked with were:
-
-- Python and XML parsing
-- pytest
-- GitHub Actions
-- Composite Actions
-- Git branching and pull requests
-- CI checks
-- semantic versioning and releases
-
-I also learned how to keep the parsing part separate from the actual coverage rules, which made it easier to add new checks later.
-
-Repository
-
-GitHub:
-
-`https://github.com/shweta-borganve/coverage-gate`
-
-Shweta Boraganve
+1. Coverage report path.
+2. Minimum coverage threshold.
+3. Warning margin.
+4. Baseline coverage.
+5. Maximum allowed regression.
 
 ## Docker
 
-Docker can be used to run the Coverage Gate application and its test suite in a container.
+Docker can be used to run Coverage Gate in a container.
 
-### Build the Docker image
+### Build the image
 
-```bash
+
 docker build -t coverage-gate:local .
-```
+
 
 ### Run Coverage Gate
 
-Run the application against the sample Cobertura XML report with a minimum coverage threshold of 80%:
 
-```bash
 docker run --rm coverage-gate:local tests/fixtures/sample.xml 80
-```
 
-### Run the test suite with Docker Compose
 
-```bash
+### Run tests with Docker Compose
+
+
 docker compose run --build --rm tests
-```
 
-This command builds the image if needed, runs the pytest suite inside a container, and removes the test container after execution.
 
-The Dockerfile configures the image to run the Coverage Gate application by default. Docker Compose overrides the entrypoint to run the test suite instead.
+This builds the image if needed, runs the test suite in a container, and removes the test container after execution.
+
+## Development and Releases
+
+Coverage Gate is developed using Git, feature branches, pull requests, and GitHub Actions.
+
+The development workflow includes:
+
+1. Create a feature branch.
+2. Implement the change and add or update tests.
+3. Run the test suite and code-quality checks.
+4. Push the branch and open a pull request.
+5. Review and merge the changes after CI passes.
+6. Use the repository's configured release workflow to publish releases.
+
+The repository uses semantic-release automation to manage versioning based on commit messages and the release configuration.
+
+## Technologies
+
+- Python
+- XML parsing
+- pytest
+- Ruff
+- Black
+- isort
+- Git and GitHub
+- GitHub Actions
+- GitHub Composite Actions
+- Docker and Docker Compose
+- Semantic versioning and automated releases
+
+## What This Project Demonstrates
+
+Coverage Gate demonstrates how a small Python application can be packaged as reusable CI infrastructure.
+
+It brings together XML parsing, validation, automated testing, configurable quality rules, GitHub Actions integration, job summaries, and release automation.
+
+## Repository
+
+GitHub: [shweta-borganve/coverage-gate](https://github.com/shweta-borganve/coverage-gate)
+
+**Author:** Shweta Boraganve
