@@ -57,6 +57,7 @@ def test_empty_xml_report(tmp_path):
 
     with pytest.raises(ValueError):
         parse_cobertura(str(coverage_file))
+feature/per-file-coverage
 
 
 def test_parse_per_file_coverage():
@@ -89,3 +90,5 @@ def test_parse_duplicate_filenames():
     assert metrics.file_coverage == {
         "src/billing.py": 60.0,
     }
+
+main

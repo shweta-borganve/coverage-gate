@@ -8,7 +8,11 @@ def test_action_uses_summary_generator():
     action = ACTION_FILE.read_text(encoding="utf-8")
 
     assert "from src.summary import generate_summary" in action
+feature/per-file-coverage
     assert "generate_summary(result, metrics.file_coverage)" in action
+
+    assert "summary_file.write(generate_summary(result))" in action
+ main
 
 
 def test_action_summary_is_optional_for_local_execution():
@@ -21,7 +25,11 @@ def test_action_summary_is_optional_for_local_execution():
 def test_action_writes_summary_before_failing():
     action = ACTION_FILE.read_text(encoding="utf-8")
 
+feature/per-file-coverage
     summary_position = action.index("generate_summary(result, metrics.file_coverage)")
+
+    summary_position = action.index("summary_file.write(generate_summary(result))")
+main
     failure_position = action.index("raise SystemExit(1)")
 
     assert summary_position < failure_position

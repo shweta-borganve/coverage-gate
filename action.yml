@@ -35,7 +35,7 @@ runs:
   using: 'composite'
   steps:
     - name: Setup Python
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v7
       with:
         python-version: '3.11'
 
@@ -81,9 +81,13 @@ runs:
 
         if summary_path:
             with open(summary_path, "a", encoding="utf-8") as summary_file:
+feature/per-file-coverage
                 summary_file.write(
                     generate_summary(result, metrics.file_coverage)
                 )
+
+                summary_file.write(generate_summary(result))
+main
 
         with open(os.environ["GITHUB_OUTPUT"], "a") as output:
             output.write(f"coverage={result.coverage}\n")
