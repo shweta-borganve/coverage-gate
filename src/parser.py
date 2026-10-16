@@ -115,6 +115,7 @@ def parse_line_coverage(
     root_dir: str | Path | None = None,
 ) -> dict[str, dict[int, bool]]:
     """Return line coverage keyed by repository-relative source filenames."""
+
     try:
         tree = ET.parse(file_path)
     except FileNotFoundError:
