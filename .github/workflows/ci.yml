@@ -1,0 +1,172 @@
+name: 🚦 CI
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  PYTHON_VERSION: "3.12"
+
+jobs:
+  lint:
+    name: 🎨 Lint and format
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+      - name: 📦 Install dependencies
+        run: pip install -r requirements-dev.txt
+      - name: 🔍 Ruff lint
+        run: ruff check .
+      - name: ⚫ Black format check
+        run: black --check .
+      - name: 🧹 isort import check
+        run: isort --check-only .
+
+  test:
+    name: 🧪 Tests (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: 🐍 Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+      - name: 📦 Install dependencies
+        run: pip install -r requirements-dev.txt
+      - name: 🧪 Run tests with coverage
+        run: |
+          pytest --cov=src --cov-branch \
+            --cov-report=xml:coverage.xml --cov-report=term-missing
+      - name: 🚧 Dogfood Coverage Gate on its own report
+        if: matrix.python-version == '3.12'
+        uses: ./
+        with:
+          coverage-file: coverage.xml
+          threshold: "80"
+      - name: 📤 Upload coverage report
+        if: matrix.python-version == '3.12'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: coverage-xml
+          path: coverage.xml
+          retention-days: 14
+
+  action-smoke:
+    name: 💨 Action smoke tests
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: ✅ Passes within threshold and regression limit
+        id: pass
+        uses: ./
+        with:
+          coverage-file: tests/fixtures/sample.xml
+          threshold: "80"
+          baseline-coverage: "89"
+          max-regression: "5"
+      - name: 🔢 Verify coverage output
+        run: test "${{ steps.pass.outputs.coverage }}" = "85.0"
+      - name: 📉 Fails below threshold
+        id: below
+        continue-on-error: true
+        uses: ./
+        with:
+          coverage-file: tests/fixtures/sample.xml
+          threshold: "90"
+      - name: 🔻 Fails on regression
+        id: regression
+        continue-on-error: true
+        uses: ./
+        with:
+          coverage-file: tests/fixtures/sample.xml
+          threshold: "80"
+          baseline-coverage: "95"
+          max-regression: "5"
+      - name: 🕳️ Fails on missing report
+        id: missing
+        continue-on-error: true
+        uses: ./
+        with:
+          coverage-file: tests/fixtures/does-not-exist.xml
+          threshold: "80"
+      - name: 🎯 Verify expected failures
+        run: |
+          test "${{ steps.below.outcome }}" = "failure"
+          test "${{ steps.regression.outcome }}" = "failure"
+          test "${{ steps.missing.outcome }}" = "failure"
+
+  docker:
+    name: 🐳 Docker build and tests
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: 🏗️ Build image
+        run: docker build -t coverage-gate:ci .
+      - name: ▶️ Run CLI in the image
+        run: docker run --rm coverage-gate:ci tests/fixtures/sample.xml 80
+      - name: 🧪 Run tests in the container
+        run: docker compose run --build --rm tests
+
+  dependency-audit:
+    name: 🛡️ Dependency audit
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: 📦 Install pip-audit
+        run: pip install pip-audit
+      - name: 🔐 Audit dependencies
+        run: pip-audit -r requirements.txt
+
+  checks-passed:
+    name: 🏁 All checks passed
+    if: always()
+    needs: [lint, test, action-smoke, docker, dependency-audit]
+    runs-on: ubuntu-26.04
+    steps:
+      - name: 🚦 Require all jobs to succeed
+        run: |
+          test "${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}" = "false"
