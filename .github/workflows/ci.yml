@@ -39,6 +39,10 @@ jobs:
         run: black --check .
       - name: 🧹 isort import check
         run: isort --check-only .
+      - name: 🔎 Validate GitHub Actions workflows
+        uses: raven-actions/actionlint@3d39aea434753780c3b3d4a1a31c854b4dbf49d7 # v2.2.0
+        with:
+          cache: false
 
   test:
     name: 🧪 Tests (Python ${{ matrix.python-version }})
@@ -80,6 +84,29 @@ jobs:
           path: coverage.xml
           retention-days: 14
 
+  workflow-security:
+    name: 🔐 Workflow security
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: 🌈 Scan workflows with zizmor
+        uses: zizmorcore/zizmor-action@85b2b9fb8e3325e7a23d7d0a9d7ba5ae0f999e3e # v0.7.1
+        with:
+          advanced-security: false
+          inputs: .github/workflows
+          min-severity: medium
+          version: v1.31.1
+      - name: 🔒 Check immutable action references
+        uses: joshjohanning/ensure-immutable-actions@aaa3ba61b950ead2be895ea36a561a5eb11dd82b # v2.7.2
+        with:
+          exclude-workflows: published-action-smoke.yml
+
   action-smoke:
     name: 💨 Action smoke tests
     runs-on: ubuntu-26.04
@@ -98,7 +125,9 @@ jobs:
           baseline-coverage: "89"
           max-regression: "5"
       - name: 🔢 Verify coverage output
-        run: test "${{ steps.pass.outputs.coverage }}" = "85.0"
+        env:
+          COVERAGE: ${{ steps.pass.outputs.coverage }}
+        run: test "$COVERAGE" = "85.0"
       - name: 📉 Fails below threshold
         id: below
         continue-on-error: true
@@ -165,7 +194,7 @@ jobs:
   checks-passed:
     name: 🏁 All checks passed
     if: always()
-    needs: [lint, test, action-smoke, docker, dependency-audit]
+    needs: [lint, test, workflow-security, action-smoke, docker, dependency-audit]
     runs-on: ubuntu-26.04
     steps:
       - name: 🚦 Require all jobs to succeed

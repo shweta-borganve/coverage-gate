@@ -1,0 +1,32 @@
+name: Published action smoke test
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 9 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  consumer-smoke:
+    name: Test the published v1 action
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out consumer fixture
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Run Coverage Gate from the published major tag
+        id: coverage
+        uses: shweta-borganve/coverage-gate@v1
+        with:
+          coverage-file: tests/fixtures/sample.xml
+          threshold: "80"
+      - name: Verify output and job summary
+        env:
+          COVERAGE: ${{ steps.coverage.outputs.coverage }}
+        run: |
+          test "$COVERAGE" = "85.0"
+          grep -Fq "**Coverage:** 85.0%" "$GITHUB_STEP_SUMMARY"
