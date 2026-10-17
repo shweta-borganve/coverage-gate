@@ -101,3 +101,22 @@ new file mode 100644
     assert parse_changed_lines(diff_text) == {
         "src/new_file.py": {1, 2},
     }
+
+
+def test_parse_changed_lines_in_renamed_file():
+    diff_text = """\
+diff --git a/src/old_parser.py b/src/parser.py
+similarity index 90%
+rename from src/old_parser.py
+rename to src/parser.py
+--- a/src/old_parser.py
++++ b/src/parser.py
+@@ -9,2 +9,3 @@
+ existing_line
++new_parser_line
+ another_existing_line
+"""
+
+    assert parse_changed_lines(diff_text) == {
+        "src/parser.py": {10},
+    }

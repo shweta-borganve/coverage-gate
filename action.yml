@@ -49,15 +49,30 @@ runs:
     - name: Run Coverage Gate
       id: run-coverage
       shell: bash
+      env:
+        PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        PR_EVENT_NAME: ${{ github.event_name }}
       run: |
         cd "${{ github.action_path }}"
         python - <<'PY'
         import os
-        from src.parser import parse_cobertura
+        import subprocess
+
+        from src.changed_coverage import (
+            ChangedCoverageReport,
+            generate_changed_coverage_report,
+        )
+        from src.changed_lines import parse_changed_lines
         from src.enforcer import enforce
+        from src.parser import parse_cobertura, parse_line_coverage
         from src.summary import generate_summary
 
-        coverage_file = "${{ github.workspace }}/${{ inputs.coverage-file }}"
+        workspace = os.environ["GITHUB_WORKSPACE"]
+        coverage_file = os.path.join(
+            workspace,
+            "${{ inputs.coverage-file }}",
+        )
         threshold = float("${{ inputs.threshold }}")
         warning_margin = float("${{ inputs.warning-margin }}")
 
@@ -77,15 +92,69 @@ runs:
 
         print(result.message)
 
+        changed_coverage = ChangedCoverageReport(
+            available=False,
+            files=[],
+            message=(
+                "Changed-code coverage not available: "
+                "pull request diff is unavailable."
+            ),
+        )
+
+        if os.environ.get("PR_EVENT_NAME") == "pull_request":
+            base_sha = os.environ.get("PR_BASE_SHA")
+            head_sha = os.environ.get("PR_HEAD_SHA")
+
+            if base_sha and head_sha:
+                try:
+                    diff_result = subprocess.run(
+                        [
+                            "git",
+                            "diff",
+                            "--unified=0",
+                            f"{base_sha}...{head_sha}",
+                            "--",
+                        ],
+                        cwd=workspace,
+                        check=True,
+                        capture_output=True,
+                        text=True,
+                    )
+
+                    changed_lines = parse_changed_lines(diff_result.stdout)
+                    line_coverage = parse_line_coverage(
+                        coverage_file,
+                        root_dir=workspace,
+                    )
+
+                    changed_coverage = generate_changed_coverage_report(
+                        changed_lines,
+                        line_coverage,
+                    )
+                except (OSError, ValueError, subprocess.SubprocessError):
+                    changed_coverage = ChangedCoverageReport(
+                        available=False,
+                        files=[],
+                        message=(
+                            "Changed-code coverage not available: "
+                            "unable to read the pull request diff "
+                            "or line-level coverage data."
+                        ),
+                    )
+
         summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
 
         if summary_path:
             with open(summary_path, "a", encoding="utf-8") as summary_file:
                 summary_file.write(
-                    generate_summary(result, metrics.file_coverage)
+                    generate_summary(
+                        result,
+                        metrics.file_coverage,
+                        changed_coverage,
+                    )
                 )
 
-        with open(os.environ["GITHUB_OUTPUT"], "a") as output:
+        with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
             output.write(f"coverage={result.coverage}\n")
 
         if not result.passed:

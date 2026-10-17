@@ -182,3 +182,41 @@ def test_duplicate_line_coverage_is_independent_of_xml_order(tmp_path, line_entr
     metrics = parse_cobertura(str(coverage_file))
 
     assert metrics.file_coverage == {"src/parser.py": 100.0}
+
+
+def test_parse_line_coverage_normalizes_source_path(tmp_path):
+    source_dir = tmp_path / "src"
+    source_dir.mkdir()
+    (source_dir / "parser.py").write_text(
+        "print('hello')\n",
+        encoding="utf-8",
+    )
+
+    coverage_file = tmp_path / "coverage.xml"
+    coverage_file.write_text(
+        f"""<coverage line-rate="1.0">
+            <sources>
+                <source>{source_dir}</source>
+            </sources>
+            <packages>
+                <package name="src">
+                    <classes>
+                        <class filename="parser.py">
+                            <lines>
+                                <line number="1" hits="1"/>
+                            </lines>
+                        </class>
+                    </classes>
+                </package>
+            </packages>
+        </coverage>
+        """,
+        encoding="utf-8",
+    )
+
+    result = parse_line_coverage(
+        str(coverage_file),
+        root_dir=tmp_path,
+    )
+
+    assert result == {"src/parser.py": {1: True}}

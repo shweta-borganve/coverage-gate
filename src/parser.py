@@ -1,6 +1,7 @@
 import math
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
+from pathlib import Path
 
 
 @dataclass
@@ -79,8 +80,41 @@ def parse_cobertura(file_path: str) -> CoverageMetrics:
     )
 
 
-def parse_line_coverage(file_path: str) -> dict[str, dict[int, bool]]:
-    """Return line coverage for each source file in a Cobertura XML report."""
+def _normalize_coverage_filename(
+    filename: str,
+    source_paths: list[Path],
+    working_directory: Path,
+) -> str:
+    """Normalize a Cobertura filename to a repository-relative path when possible."""
+    file_path = Path(filename)
+
+    if file_path.is_absolute():
+        candidates = [file_path]
+    else:
+        candidates = [working_directory / file_path]
+        candidates.extend(source / file_path for source in source_paths)
+
+    for candidate in candidates:
+        resolved = candidate.resolve()
+
+        try:
+            relative_path = resolved.relative_to(working_directory)
+        except ValueError:
+            continue
+
+        if relative_path.is_file():
+            return relative_path.as_posix()
+
+    # Preserve the original filename if it cannot be resolved inside the
+    # working directory. This avoids guessing paths for external sources.
+    return file_path.as_posix()
+
+
+def parse_line_coverage(
+    file_path: str,
+    root_dir: str | Path | None = None,
+) -> dict[str, dict[int, bool]]:
+    """Return line coverage keyed by repository-relative source filenames."""
     try:
         tree = ET.parse(file_path)
     except FileNotFoundError:
@@ -93,6 +127,28 @@ def parse_line_coverage(file_path: str) -> dict[str, dict[int, bool]]:
     if root.tag != "coverage":
         raise ValueError(f"Unsupported coverage report root: {root.tag}")
 
+    coverage_file = Path(file_path).resolve()
+    working_directory = (
+        Path(root_dir).resolve() if root_dir is not None else Path.cwd().resolve()
+    )
+
+    source_paths = []
+    sources_element = root.find("sources")
+
+    if sources_element is not None:
+        for source_element in sources_element.findall("source"):
+            source_text = (source_element.text or "").strip()
+
+            if not source_text:
+                continue
+
+            source_path = Path(source_text)
+
+            if not source_path.is_absolute():
+                source_path = coverage_file.parent / source_path
+
+            source_paths.append(source_path.resolve())
+
     file_lines: dict[str, dict[int, bool]] = {}
 
     for class_element in root.iter("class"):
@@ -100,6 +156,12 @@ def parse_line_coverage(file_path: str) -> dict[str, dict[int, bool]]:
 
         if not filename:
             continue
+
+        normalized_filename = _normalize_coverage_filename(
+            filename,
+            source_paths,
+            working_directory,
+        )
 
         for line_element in class_element.findall("./lines/line"):
             number_text = line_element.get("number")
@@ -123,7 +185,7 @@ def parse_line_coverage(file_path: str) -> dict[str, dict[int, bool]]:
                     f"Invalid line number or hits in coverage XML file: {file_path}"
                 )
 
-            lines = file_lines.setdefault(filename, {})
+            lines = file_lines.setdefault(normalized_filename, {})
             lines[line_number] = lines.get(line_number, False) or hits > 0
 
     return file_lines
