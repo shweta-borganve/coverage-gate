@@ -1,6 +1,7 @@
-def generate_summary(result):
+def generate_summary(result, file_coverage=None):
     status = "PASS" if result.passed else "FAIL"
     warning_status = "Yes" if result.warning else "No"
+
     summary_lines = [
         "## Coverage Gate Summary",
         "",
@@ -20,5 +21,19 @@ def generate_summary(result):
         )
     else:
         summary_lines.append("- **Regression:** No — within the allowed limit")
+
+    if file_coverage:
+        summary_lines.extend(
+            [
+                "",
+                "### Per-file Coverage",
+                "",
+                "| File | Coverage |",
+                "|---|---:|",
+            ]
+        )
+
+        for filename, coverage in sorted(file_coverage.items()):
+            summary_lines.append(f"| `{filename}` | {coverage:.1f}% |")
 
     return "\n".join(summary_lines) + "\n"
