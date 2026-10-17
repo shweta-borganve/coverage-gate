@@ -35,36 +35,47 @@ runs:
   using: 'composite'
   steps:
     - name: Setup Python
-      uses: actions/setup-python@v7
+      uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
       with:
         python-version: '3.11'
 
     - name: Install dependencies
       shell: bash
+      env:
+        ACTION_PATH: ${{ github.action_path }}
       run: |
-        cd "${{ github.action_path }}"
+        cd "$ACTION_PATH"
         python -m pip install --upgrade pip
         pip install -r requirements.txt
 
     - name: Run Coverage Gate
       id: run-coverage
       shell: bash
+      env:
+        ACTION_PATH: ${{ github.action_path }}
+        COVERAGE_FILE: ${{ inputs.coverage-file }}
+        COVERAGE_THRESHOLD: ${{ inputs.threshold }}
+        WARNING_MARGIN: ${{ inputs.warning-margin }}
+        BASELINE_COVERAGE: ${{ inputs.baseline-coverage }}
+        MAX_REGRESSION: ${{ inputs.max-regression }}
       run: |
-        cd "${{ github.action_path }}"
+        cd "$ACTION_PATH"
         python - <<'PY'
         import os
         from src.parser import parse_cobertura
         from src.enforcer import enforce
         from src.summary import generate_summary
 
-        coverage_file = "${{ github.workspace }}/${{ inputs.coverage-file }}"
-        threshold = float("${{ inputs.threshold }}")
-        warning_margin = float("${{ inputs.warning-margin }}")
+        coverage_file = os.path.join(
+          os.environ["GITHUB_WORKSPACE"], os.environ["COVERAGE_FILE"]
+        )
+        threshold = float(os.environ["COVERAGE_THRESHOLD"])
+        warning_margin = float(os.environ["WARNING_MARGIN"])
 
-        baseline_text = "${{ inputs.baseline-coverage }}"
+        baseline_text = os.environ["BASELINE_COVERAGE"]
         baseline_coverage = float(baseline_text) if baseline_text else None
 
-        max_regression = float("${{ inputs.max-regression }}")
+        max_regression = float(os.environ["MAX_REGRESSION"])
 
         metrics = parse_cobertura(coverage_file)
         result = enforce(
