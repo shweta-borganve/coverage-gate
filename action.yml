@@ -52,7 +52,7 @@ runs:
       id: run-coverage
       shell: bash
       env:
-feature/changed-code-coverage
+
         PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
         PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         PR_EVENT_NAME: ${{ github.event_name }}
@@ -63,7 +63,7 @@ feature/changed-code-coverage
         WARNING_MARGIN: ${{ inputs.warning-margin }}
         BASELINE_COVERAGE: ${{ inputs.baseline-coverage }}
         MAX_REGRESSION: ${{ inputs.max-regression }}
-main
+
       run: |
         cd "$ACTION_PATH"
         python - <<'PY'
@@ -79,7 +79,7 @@ main
         from src.parser import parse_cobertura, parse_line_coverage
         from src.summary import generate_summary
 
-feature/changed-code-coverage
+
         workspace = os.environ["GITHUB_WORKSPACE"]
         coverage_file = os.path.join(
             workspace,
@@ -93,7 +93,7 @@ feature/changed-code-coverage
         )
         threshold = float(os.environ["COVERAGE_THRESHOLD"])
         warning_margin = float(os.environ["WARNING_MARGIN"])
-main
+
 
         baseline_text = os.environ["BASELINE_COVERAGE"]
         baseline_coverage = float(baseline_text) if baseline_text else None
