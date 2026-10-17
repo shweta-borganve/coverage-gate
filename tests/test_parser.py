@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from src.parser import parse_cobertura
+from src.parser import parse_cobertura, parse_line_coverage
 
 FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures"
 
@@ -63,7 +63,6 @@ def test_empty_xml_report(tmp_path):
         parse_cobertura(str(coverage_file))
 
 
-feature/changed-code-coverage
 def test_parse_line_coverage(tmp_path):
     coverage_file = tmp_path / "line-coverage.xml"
     coverage_file.write_text(
@@ -87,8 +86,6 @@ def test_parse_line_coverage(tmp_path):
         encoding="utf-8",
     )
 
-    from src.parser import parse_line_coverage
-
     result = parse_line_coverage(str(coverage_file))
 
     assert result == {
@@ -97,6 +94,8 @@ def test_parse_line_coverage(tmp_path):
             11: False,
             12: True,
         }
+    }
+
 
 def test_parse_per_file_coverage():
     metrics = parse_cobertura(FIXTURES_DIR / "per_file.xml")
@@ -127,12 +126,10 @@ def test_parse_duplicate_filenames():
 
     assert metrics.file_coverage == {
         "src/parser.py": 60.0,
- main
     }
 
 
 @pytest.mark.parametrize(
-feature/changed-code-coverage
     ("number", "hits"),
     [
         ("0", "1"),
@@ -162,11 +159,11 @@ def test_parse_line_coverage_rejects_invalid_line_data(tmp_path, number, hits):
         encoding="utf-8",
     )
 
-    from src.parser import parse_line_coverage
-
     with pytest.raises(ValueError):
         parse_line_coverage(str(coverage_file))
 
+
+@pytest.mark.parametrize(
     "line_entries",
     [
         ('<line number="1" hits="0"/>', '<line number="1" hits="1"/>'),
@@ -185,4 +182,3 @@ def test_duplicate_line_coverage_is_independent_of_xml_order(tmp_path, line_entr
     metrics = parse_cobertura(str(coverage_file))
 
     assert metrics.file_coverage == {"src/parser.py": 100.0}
-main
