@@ -1,4 +1,8 @@
-def generate_summary(result, file_coverage=None):
+def generate_summary(
+    result,
+    file_coverage=None,
+    changed_coverage=None,
+):
     status = "PASS" if result.passed else "FAIL"
     warning_status = "Yes" if result.warning else "No"
 
@@ -35,5 +39,38 @@ def generate_summary(result, file_coverage=None):
 
         for filename, coverage in sorted(file_coverage.items()):
             summary_lines.append(f"| `{filename}` | {coverage:.1f}% |")
+
+    if changed_coverage is not None:
+        summary_lines.extend(
+            [
+                "",
+                "### Changed-Code Coverage",
+                "",
+            ]
+        )
+
+        if not changed_coverage.available:
+            summary_lines.append(f"**Not available:** {changed_coverage.message}")
+        else:
+            summary_lines.extend(
+                [
+                    "| File | Changed lines | Covered | Uncovered | Uncovered line numbers |",
+                    "|---|---:|---:|---:|---|",
+                ]
+            )
+
+            if not changed_coverage.files:
+                summary_lines.append("| No changed lines | 0 | 0 | 0 | None |")
+
+            for item in changed_coverage.files:
+                line_numbers = (
+                    ", ".join(str(number) for number in item.uncovered_line_numbers)
+                    or "None"
+                )
+                summary_lines.append(
+                    f"| `{item.filename}` | {item.changed_lines} | "
+                    f"{item.covered_lines} | {item.uncovered_lines} | "
+                    f"{line_numbers} |"
+                )
 
     return "\n".join(summary_lines) + "\n"
