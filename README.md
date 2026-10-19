@@ -1,3 +1,4 @@
+ feature/changed-code-coverage
 # COVERAGE GATE
 
 **Coverage Gate** is a reusable GitHub Composite Action that checks Python test coverage from a Cobertura XML report and enforces configurable coverage rules in CI.
@@ -354,8 +355,60 @@ Coverage Gate demonstrates how a small Python application can be packaged as reu
 
 It brings together XML parsing, validation, automated testing, configurable quality rules, GitHub Actions integration, job summaries, and release automation.
 
+# Coverage Gate
+
+Coverage Gate is a reusable GitHub Action that helps Python developers monitor test coverage and maintain code quality in CI.
+
+## Features
+
+- **Coverage Threshold:** Enforces a minimum line-coverage requirement.
+- **Warning Margin:** Warns when coverage approaches the configured threshold.
+- **Regression Checks:** Detects coverage drops against a configured baseline.
+- **Per-File Coverage:** Shows coverage results for individual files.
+- **Changed-Line Coverage:** Reports covered and uncovered lines added in pull requests.
+- **GitHub Actions Summary:** Displays coverage results directly in the workflow summary.
+
+## Quick Start
+
+### 1. Generate a coverage report
+
+Install `pytest-cov` and generate a Cobertura XML report:
+
+```bash
+python -m pip install pytest pytest-cov
+python -m pytest --cov=src --cov-report=xml:coverage.xml
+```
+
+Replace `src` with your project's source directory if needed.
+
+### 2. Add Coverage Gate to your workflow
+
+Add this step to your GitHub Actions workflow after generating the coverage report:
+
+```yaml
+- name: Check test coverage
+  uses: shweta-borganve/coverage-gate@v1.5.1
+  with:
+    coverage-file: coverage.xml
+    threshold: '80'
+```
+## Configuration
+
+| Input | Purpose |
+|---|---|
+| `coverage-file` | Path to the Cobertura XML report |
+| `threshold` | Minimum required coverage (%) |
+| `warning-margin` | Warning range near the threshold |
+| `baseline-coverage` | Optional baseline coverage |
+| `max-regression` | Maximum allowed coverage drop |
+main
+
 ## Repository
 
 GitHub: [shweta-borganve/coverage-gate](https://github.com/shweta-borganve/coverage-gate)
 
+feature/changed-code-coverage
 **Author:** Shweta Boraganve
+
+**Author:** Shweta Boraganve 
+main
