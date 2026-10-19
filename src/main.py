@@ -2,10 +2,7 @@ import os
 import subprocess
 import sys
 
-from src.changed_coverage import (
-    ChangedCoverageReport,
-    generate_changed_coverage_report,
-)
+from src.changed_coverage import ChangedCoverageReport, generate_changed_coverage_report
 from src.changed_lines import parse_changed_lines
 from src.enforcer import enforce
 from src.logger_config import configure_logger
