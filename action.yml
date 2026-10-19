@@ -35,7 +35,7 @@ runs:
   using: 'composite'
   steps:
     - name: Setup Python
-      uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      uses: actions/setup-python@v7
       with:
         python-version: '3.11'
 
@@ -49,33 +49,21 @@ runs:
         cd "$ACTION_PATH"
         python -m pip install --upgrade pip
         python -m pip install -r requirements.txt
- feature/changed-code-coverage
         echo "[Coverage Gate] Dependencies installed successfully."
-
- main
 
     - name: Run Coverage Gate
       id: run-coverage
       shell: bash
       env:
-feature/changed-code-coverage
         PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
         PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         PR_EVENT_NAME: ${{ github.event_name }}
-
-
-        PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        PR_EVENT_NAME: ${{ github.event_name }}
-
- main
         ACTION_PATH: ${{ github.action_path }}
         COVERAGE_FILE: ${{ inputs.coverage-file }}
         COVERAGE_THRESHOLD: ${{ inputs.threshold }}
         WARNING_MARGIN: ${{ inputs.warning-margin }}
         BASELINE_COVERAGE: ${{ inputs.baseline-coverage }}
         MAX_REGRESSION: ${{ inputs.max-regression }}
-
       run: |
         set -e
         cd "$ACTION_PATH"
@@ -95,26 +83,13 @@ feature/changed-code-coverage
         from src.parser import parse_cobertura, parse_line_coverage
         from src.summary import generate_summary
 
-feature/changed-code-coverage
         workspace = os.environ["GITHUB_WORKSPACE"]
-
-
-        workspace = os.environ["GITHUB_WORKSPACE"]
-        coverage_file = os.path.join(
-            workspace,
-            "${{ inputs.coverage-file }}",
-        )
-        threshold = float("${{ inputs.threshold }}")
-        warning_margin = float("${{ inputs.warning-margin }}")
-
-main
         coverage_file = os.path.join(
             workspace,
             os.environ["COVERAGE_FILE"],
         )
         threshold = float(os.environ["COVERAGE_THRESHOLD"])
         warning_margin = float(os.environ["WARNING_MARGIN"])
-
 
         baseline_text = os.environ["BASELINE_COVERAGE"]
         baseline_coverage = float(baseline_text) if baseline_text else None
@@ -237,56 +212,6 @@ main
                 "skipping changed-code coverage."
             )
 
-        changed_coverage = ChangedCoverageReport(
-            available=False,
-            files=[],
-            message=(
-                "Changed-code coverage not available: "
-                "pull request diff is unavailable."
-            ),
-        )
-
-        if os.environ.get("PR_EVENT_NAME") == "pull_request":
-            base_sha = os.environ.get("PR_BASE_SHA")
-            head_sha = os.environ.get("PR_HEAD_SHA")
-
-            if base_sha and head_sha:
-                try:
-                    diff_result = subprocess.run(
-                        [
-                            "git",
-                            "diff",
-                            "--unified=0",
-                            f"{base_sha}...{head_sha}",
-                            "--",
-                        ],
-                        cwd=workspace,
-                        check=True,
-                        capture_output=True,
-                        text=True,
-                    )
-
-                    changed_lines = parse_changed_lines(diff_result.stdout)
-                    line_coverage = parse_line_coverage(
-                        coverage_file,
-                        root_dir=workspace,
-                    )
-
-                    changed_coverage = generate_changed_coverage_report(
-                        changed_lines,
-                        line_coverage,
-                    )
-                except (OSError, ValueError, subprocess.SubprocessError):
-                    changed_coverage = ChangedCoverageReport(
-                        available=False,
-                        files=[],
-                        message=(
-                            "Changed-code coverage not available: "
-                            "unable to read the pull request diff "
-                            "or line-level coverage data."
-                        ),
-                    )
-
         summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
 
         if summary_path:
@@ -299,7 +224,6 @@ main
                         changed_coverage,
                     )
                 )
-feature/changed-code-coverage
             print("[Coverage Gate] Step summary written successfully.")
         else:
             print(
@@ -312,10 +236,6 @@ feature/changed-code-coverage
             "a",
             encoding="utf-8",
         ) as output:
-
-
-        with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
-main
             output.write(f"coverage={result.coverage}\n")
 
         if not result.passed:
