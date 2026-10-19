@@ -1,5 +1,14 @@
 import logging
 import os
+import sys
+
+
+class DynamicStdoutHandler(logging.StreamHandler):
+    """Write log messages to the current stdout stream."""
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self.stream = sys.stdout
+        super().emit(record)
 
 
 def configure_logger(name: str = "coverage_gate") -> logging.Logger:
@@ -11,7 +20,7 @@ def configure_logger(name: str = "coverage_gate") -> logging.Logger:
     logger.propagate = False
 
     if not logger.handlers:
-        handler = logging.StreamHandler()
+        handler = DynamicStdoutHandler()
         handler.setFormatter(
             logging.Formatter(
                 fmt="%(asctime)s | %(levelname)s | %(name)s | %(message)s",

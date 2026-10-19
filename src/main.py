@@ -1,4 +1,3 @@
-import logging
 import sys
 
 from src.enforcer import enforce
@@ -9,10 +8,6 @@ logger = configure_logger(__name__)
 
 
 def main():
-    # Use the current stdout stream so pytest can capture log messages.
-    for handler in logger.handlers:
-        if isinstance(handler, logging.StreamHandler):
-            handler.stream = sys.stdout
 
     logger.info("Coverage Gate started.")
 
