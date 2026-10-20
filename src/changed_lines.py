@@ -9,14 +9,16 @@ HUNK_PATTERN = re.compile(r"@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
 
 def parse_changed_lines(diff_text: str) -> dict[str, set[int]]:
     """Return added line numbers grouped by file path."""
+    lines = diff_text.splitlines()
+
     logger.info("Parsing diff to identify changed lines.")
-    logger.debug("Diff contains %d lines.", len(diff_text.splitlines()))
+    logger.debug("Diff contains %d lines.", len(lines))
 
     changed_lines = {}
     current_file = None
     current_line = None
 
-    for line in diff_text.splitlines():
+    for line in lines:
         if line.startswith("+++ "):
             file_path = line[4:].strip()
 
