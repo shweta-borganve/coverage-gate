@@ -61,6 +61,9 @@ def generate_summary(
                 "",
                 "### Per-file Coverage",
                 "",
+                "<details>",
+                "<summary>Show per-file coverage</summary>",
+                "",
                 "| File | Coverage |",
                 "|---|---:|",
             ]
@@ -73,6 +76,13 @@ def generate_summary(
                 coverage,
             )
             summary_lines.append(f"| `{filename}` | {coverage:.1f}% |")
+
+        summary_lines.extend(
+            [
+                "",
+                "</details>",
+            ]
+        )
     else:
         logger.debug("No per-file coverage details provided.")
 
