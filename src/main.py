@@ -1,6 +1,7 @@
 import os
 import subprocess
 import sys
+from pathlib import Path
 
 from src.changed_coverage import ChangedCoverageReport, generate_changed_coverage_report
 from src.changed_lines import parse_changed_lines
@@ -12,13 +13,29 @@ from src.summary import generate_summary
 logger = configure_logger(__name__)
 
 
+def _resolve_coverage_file(workspace: str, configured_path: str) -> str:
+    """Resolve a coverage report path and ensure it stays inside the workspace."""
+    workspace_path = Path(workspace).resolve()
+    coverage_path = (workspace_path / configured_path).resolve()
+
+    try:
+        coverage_path.relative_to(workspace_path)
+    except ValueError as error:
+        raise ValueError(
+            "Coverage report must be located inside GITHUB_WORKSPACE."
+        ) from error
+
+    return str(coverage_path)
+
+
 def run_action():
     """Run Coverage Gate inside GitHub Actions."""
     workspace = os.environ["GITHUB_WORKSPACE"]
-    coverage_file = os.path.join(
+    coverage_file = _resolve_coverage_file(
         workspace,
         os.environ["COVERAGE_FILE"],
     )
+
     threshold = float(os.environ["COVERAGE_THRESHOLD"])
     warning_margin = float(os.environ["WARNING_MARGIN"])
 
