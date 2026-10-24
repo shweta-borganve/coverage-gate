@@ -35,6 +35,13 @@ Add this step to your GitHub Actions workflow after generating the coverage repo
     coverage-file: coverage.xml
     threshold: '80'
 ```
+
+## Docker Action
+
+A Docker-based version is available for containerized workflows. The existing Composite Action remains unchanged.
+
+See [`docker/README.md`](docker/README.md) for usage and configuration.
+
 ## Configuration
 
 | Input | Purpose |
@@ -49,4 +56,4 @@ Add this step to your GitHub Actions workflow after generating the coverage repo
 
 GitHub: [shweta-borganve/coverage-gate](https://github.com/shweta-borganve/coverage-gate)
 
-**Author:** Shweta Boraganve 
+**Author:** Shweta Boraganve
