@@ -61,3 +61,34 @@ def test_lcov_rejects_negative_hit_count(tmp_path):
 
     with pytest.raises(ValueError, match="Invalid DA record"):
         parse_lcov(str(coverage_file))
+
+
+def test_lcov_allows_empty_source_record_when_other_record_has_lines(tmp_path):
+    coverage_file = tmp_path / "mixed.info"
+    coverage_file.write_text(
+        "TN:\n"
+        "SF:src/empty.py\n"
+        "end_of_record\n"
+        "TN:\n"
+        "SF:src/main.py\n"
+        "DA:1,1\n"
+        "DA:2,0\n"
+        "end_of_record\n",
+        encoding="utf-8",
+    )
+
+    metrics = parse_lcov(str(coverage_file))
+
+    assert metrics.total_coverage == 50.0
+    assert metrics.file_coverage == {"src/main.py": 50.0}
+
+
+def test_lcov_rejects_only_empty_source_records(tmp_path):
+    coverage_file = tmp_path / "no-lines.info"
+    coverage_file.write_text(
+        "TN:\n" "SF:src/empty.py\n" "end_of_record\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="Missing line coverage data"):
+        parse_lcov(str(coverage_file))

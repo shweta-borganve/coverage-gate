@@ -122,7 +122,6 @@ def _parse_lcov_line_data(file_path: str) -> dict[str, dict[int, bool]]:
 
     file_lines: dict[str, dict[int, bool]] = {}
     current_filename: str | None = None
-    current_record_has_lines = False
     completed_record = False
 
     for raw_line in content.splitlines():
@@ -143,7 +142,6 @@ def _parse_lcov_line_data(file_path: str) -> dict[str, dict[int, bool]]:
                 raise ValueError(f"Missing source filename in LCOV report: {file_path}")
 
             file_lines.setdefault(current_filename, {})
-            current_record_has_lines = False
 
         elif line.startswith("DA:"):
             if current_filename is None:
@@ -170,17 +168,14 @@ def _parse_lcov_line_data(file_path: str) -> dict[str, dict[int, bool]]:
 
             lines = file_lines[current_filename]
             lines[line_number] = lines.get(line_number, False) or hits > 0
-            current_record_has_lines = True
 
         elif line == "end_of_record":
-            if current_filename is None or not current_record_has_lines:
+            if current_filename is None:
                 raise ValueError(
-                    "Missing source filename or line data in LCOV report: "
-                    f"{file_path}"
+                    f"Unexpected end_of_record in LCOV report: {file_path}"
                 )
 
             current_filename = None
-            current_record_has_lines = False
             completed_record = True
 
         elif line.startswith(
