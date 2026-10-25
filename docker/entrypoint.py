@@ -1,13 +1,17 @@
+import json
 import logging
 import os
 import subprocess
 import sys
 from pathlib import Path
 
-from src.changed_coverage import ChangedCoverageReport, generate_changed_coverage_report
+from src.changed_coverage import (
+    ChangedCoverageReport,
+    generate_changed_coverage_report,
+)
 from src.changed_lines import parse_changed_lines
 from src.enforcer import enforce
-from src.parser import parse_cobertura, parse_line_coverage
+from src.parser import parse_coverage_report, parse_line_coverage
 from src.summary import generate_summary
 
 logging.basicConfig(
@@ -34,6 +38,7 @@ def main():
 
     workspace = Path(os.environ.get("GITHUB_WORKSPACE", "/github/workspace"))
     coverage_path = Path(get_input("coverage-file"))
+
     if not coverage_path.is_absolute():
         coverage_path = workspace / coverage_path
 
@@ -44,7 +49,10 @@ def main():
     max_regression = float(get_input("max-regression", "5"))
 
     logger.info("Reading coverage report: %s", coverage_path)
-    metrics = parse_cobertura(coverage_path)
+    metrics = parse_coverage_report(
+        str(coverage_path),
+        root_dir=workspace.resolve(),
+    )
 
     logger.info("Evaluating coverage rules.")
     result = enforce(
@@ -59,9 +67,7 @@ def main():
     changed_coverage = ChangedCoverageReport(
         available=False,
         files=[],
-        message=(
-            "Changed-code coverage not available: " "pull request diff is unavailable."
-        ),
+        message="Changed-code coverage not available: pull request diff is unavailable.",
     )
 
     if os.environ.get("GITHUB_EVENT_NAME") == "pull_request":
@@ -70,11 +76,11 @@ def main():
 
         # Prefer the actual pull request SHAs from the event payload.
         event_path = os.environ.get("GITHUB_EVENT_PATH")
-        if event_path and Path(event_path).is_file():
-            import json
 
+        if event_path and Path(event_path).is_file():
             with open(event_path, encoding="utf-8") as event_file:
                 event = json.load(event_file)
+
             pull_request = event.get("pull_request", {})
             base_sha = pull_request.get("base", {}).get("sha", base_sha)
             head_sha = pull_request.get("head", {}).get("sha", head_sha)
@@ -95,6 +101,7 @@ def main():
                     capture_output=True,
                     text=True,
                 )
+
                 changed_lines = parse_changed_lines(diff_result.stdout)
                 line_coverage = parse_line_coverage(
                     coverage_path,
@@ -104,7 +111,11 @@ def main():
                     changed_lines,
                     line_coverage,
                 )
-            except (OSError, ValueError, subprocess.SubprocessError) as error:
+            except (
+                OSError,
+                ValueError,
+                subprocess.SubprocessError,
+            ) as error:
                 logger.warning("Changed-code coverage unavailable: %s", error)
                 changed_coverage = ChangedCoverageReport(
                     available=False,
@@ -117,6 +128,7 @@ def main():
                 )
 
     summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+
     if summary_path:
         logger.info("Writing GitHub Actions step summary.")
         with open(summary_path, "a", encoding="utf-8") as summary_file:
@@ -129,9 +141,11 @@ def main():
             )
 
     output_path = os.environ.get("GITHUB_OUTPUT")
+
     if output_path:
         with open(output_path, "a", encoding="utf-8") as output_file:
             output_file.write(f"coverage={result.coverage}\n")
+
         logger.info("Coverage output written.")
 
     if not result.passed:
