@@ -1,5 +1,5 @@
 -r requirements.txt
-pytest-cov>=5.0
+pytest-cov>=7.1.0
 ruff>=0.17.1
 black>=26.10.1
 isort>=9.0.2
