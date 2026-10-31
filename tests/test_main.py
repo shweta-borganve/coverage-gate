@@ -202,3 +202,41 @@ def test_main_invalid_max_regression(monkeypatch, capsys):
 
     assert result == 1
     assert "Invalid max regression: invalid" in captured.out
+
+
+def test_main_supports_lcov_report(monkeypatch, capsys):
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "main.py",
+            "tests/fixtures/sample.info",
+            "70",
+        ],
+    )
+
+    result = main()
+
+    captured = capsys.readouterr()
+
+    assert result == 0
+    assert "Coverage 75.0% vs threshold 70.0% — PASS" in captured.out
+
+
+def test_main_rejects_unsupported_report_format(monkeypatch, capsys):
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "main.py",
+            "tests/fixtures/sample.json",
+            "70",
+        ],
+    )
+
+    result = main()
+
+    captured = capsys.readouterr()
+
+    assert result == 1
+    assert "Unsupported coverage report format: .json" in captured.out
