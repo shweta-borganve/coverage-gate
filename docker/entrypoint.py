@@ -20,7 +20,7 @@ logger = logging.getLogger("coverage-gate")
 
 def get_input(name, default=None):
     """Read a GitHub Docker Action input."""
-    env_name = f"INPUT_{name.replace('-', '_').upper()}"
+    env_name = f"INPUT_{name.upper()}"
     value = os.environ.get(env_name, default)
 
     if value is None:
