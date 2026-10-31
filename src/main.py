@@ -1,7 +1,8 @@
 import sys
+from pathlib import Path
 
 from src.enforcer import enforce
-from src.parser import parse_cobertura
+from src.parser import parse_cobertura, parse_lcov
 
 
 def main():
@@ -49,7 +50,19 @@ def main():
         return 1
 
     try:
-        metrics = parse_cobertura(file_path)
+        file_extension = Path(file_path).suffix.lower()
+
+        if file_extension == ".xml":
+            metrics = parse_cobertura(file_path)
+        elif file_extension == ".info":
+            metrics = parse_lcov(file_path)
+        else:
+            raise ValueError(
+                f"Unsupported coverage report format: "
+                f"{file_extension or 'no extension'}. "
+                "Supported formats: .xml (Cobertura), .info (LCOV)."
+            )
+
         result = enforce(
             metrics,
             threshold,
