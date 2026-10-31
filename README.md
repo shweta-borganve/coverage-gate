@@ -1,52 +1,51 @@
 # Coverage Gate
 
-Coverage Gate is a reusable GitHub Action that helps Python developers monitor test coverage and maintain code quality in CI.
+A reusable GitHub Action that enforces test coverage thresholds and prevents coverage regressions.
 
 ## Features
 
-- **Coverage Threshold:** Enforces a minimum line-coverage requirement.
-- **Warning Margin:** Warns when coverage approaches the configured threshold.
-- **Regression Checks:** Detects coverage drops against a configured baseline.
-- **Per-File Coverage:** Shows coverage results for individual files.
-- **Changed-Line Coverage:** Reports covered and uncovered lines added in pull requests.
-- **GitHub Actions Summary:** Displays coverage results directly in the workflow summary.
+- Configurable coverage thresholds
+- Coverage regression checks
+- Per-file and changed-line coverage
+- GitHub Actions summary
+- Cobertura XML and LCOV support
 
 ## Quick Start
 
-### 1. Generate a coverage report
-
-Install `pytest-cov` and generate a Cobertura XML report:
+Generate a Cobertura report:
 
 ```bash
-python -m pip install pytest pytest-cov
 python -m pytest --cov=src --cov-report=xml:coverage.xml
 ```
 
-Replace `src` with your project's source directory if needed.
+Add Coverage Gate to your workflow.
 
-### 2. Add Coverage Gate to your workflow
-
-Add this step to your GitHub Actions workflow after generating the coverage report:
+**For XML:**
 
 ```yaml
-- name: Check test coverage
-  uses: shweta-borganve/coverage-gate@v1.5.1
+- uses: shweta-borganve/coverage-gate@v1.5.1
   with:
     coverage-file: coverage.xml
     threshold: '80'
 ```
+
+**For LCOV:**
+
+```yaml
+- uses: shweta-borganve/coverage-gate@v1.5.1
+  with:
+    coverage-file: lcov.info
+    threshold: '80'
+```
+
 ## Configuration
 
 | Input | Purpose |
 |---|---|
-| `coverage-file` | Path to the Cobertura XML report |
-| `threshold` | Minimum required coverage (%) |
-| `warning-margin` | Warning range near the threshold |
-| `baseline-coverage` | Optional baseline coverage |
-| `max-regression` | Maximum allowed coverage drop |
+| `coverage-file` | `.xml` or `.info` report path |
+| `threshold` | Minimum coverage (%) |
+| `warning-margin` | Warning range |
+| `baseline-coverage` | Baseline coverage (%) |
+| `max-regression` | Maximum allowed regression (%) |
 
-## Repository
-
-GitHub: [shweta-borganve/coverage-gate](https://github.com/shweta-borganve/coverage-gate)
-
-**Author:** Shweta Boraganve 
+GitHub: [Coverage Gate](https://github.com/shweta-borganve/coverage-gate)

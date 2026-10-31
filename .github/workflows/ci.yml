@@ -69,19 +69,29 @@ jobs:
       - name: 🧪 Run tests with coverage
         run: |
           pytest --cov=src --cov-branch \
-            --cov-report=xml:coverage.xml --cov-report=term-missing
-      - name: 🚧 Dogfood Coverage Gate on its own report
+            --cov-report=xml:coverage.xml \
+            --cov-report=lcov:coverage.info \
+            --cov-report=term-missing
+      - name: 🚧 Dogfood Coverage Gate on XML report
         if: matrix.python-version == '3.12'
         uses: ./
         with:
           coverage-file: coverage.xml
           threshold: "80"
-      - name: 📤 Upload coverage report
+      - name: 🧬 Dogfood Coverage Gate on LCOV report
+        if: matrix.python-version == '3.12'
+        uses: ./
+        with:
+          coverage-file: coverage.info
+          threshold: "80"
+      - name: 📤 Upload coverage reports
         if: matrix.python-version == '3.12'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: coverage-xml
-          path: coverage.xml
+          name: coverage-reports
+          path: |
+            coverage.xml
+            coverage.info
           retention-days: 14
 
   workflow-security:
@@ -128,6 +138,16 @@ jobs:
         env:
           COVERAGE: ${{ steps.pass.outputs.coverage }}
         run: test "$COVERAGE" = "85.0"
+      - name: 🧬 Passes with LCOV report
+        id: lcov-pass
+        uses: ./
+        with:
+          coverage-file: tests/fixtures/sample.info
+          threshold: "70"
+      - name: 🔢 Verify LCOV coverage output
+        env:
+          COVERAGE: ${{ steps.lcov-pass.outputs.coverage }}
+        run: test "$COVERAGE" = "75.0"
       - name: 📉 Fails below threshold
         id: below
         continue-on-error: true
