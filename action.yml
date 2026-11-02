@@ -35,7 +35,7 @@ runs:
   using: 'composite'
   steps:
     - name: Setup Python
-      uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      uses: actions/setup-python@v7
       with:
         python-version: '3.11'
 
@@ -44,9 +44,12 @@ runs:
       env:
         ACTION_PATH: ${{ github.action_path }}
       run: |
+        set -e
+        echo "[Coverage Gate] Installing dependencies..."
         cd "$ACTION_PATH"
         python -m pip install --upgrade pip
         python -m pip install -r requirements.txt
+        echo "[Coverage Gate] Dependencies installed successfully."
 
     - name: Run Coverage Gate
       id: run-coverage
@@ -62,7 +65,9 @@ runs:
         BASELINE_COVERAGE: ${{ inputs.baseline-coverage }}
         MAX_REGRESSION: ${{ inputs.max-regression }}
       run: |
+        set -e
         cd "$ACTION_PATH"
+feature/lcov-only
         python - <<'PY'
         import os
         import subprocess
@@ -174,3 +179,7 @@ runs:
         if not result.passed:
             raise SystemExit(1)
         PY
+
+        echo "[Coverage Gate] Starting coverage check..."
+        python -m src.main --github-action
+main
