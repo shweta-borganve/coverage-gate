@@ -92,16 +92,19 @@ def test_summary_includes_per_file_coverage():
     )
 
     file_coverage = {
-        "src/module_a.py": 90.0,
-        "src/module_b.py": 60.0,
+        "src/parser.py": 90.0,
+        "src/enforcer.py": 60.0,
     }
 
     summary = generate_summary(result, file_coverage)
 
     assert "### Per-file Coverage" in summary
+    assert "<details>" in summary
+    assert "<summary>Show per-file coverage</summary>" in summary
     assert "| File | Coverage |" in summary
-    assert "| `src/module_a.py` | 90.0% |" in summary
-    assert "| `src/module_b.py` | 60.0% |" in summary
+    assert "| `src/enforcer.py` | 60.0% |" in summary
+    assert "| `src/parser.py` | 90.0% |" in summary
+    assert "</details>" in summary
 
 
 def test_summary_includes_changed_code_coverage():
