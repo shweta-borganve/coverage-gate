@@ -386,3 +386,74 @@ def test_action_invalid_threshold_returns_failure(monkeypatch, tmp_path, capsys)
 
     assert result == 1
     assert "[Coverage Gate] ERROR:" in captured.out
+
+
+def test_action_rejects_coverage_file_outside_workspace(monkeypatch, tmp_path, capsys):
+    configure_action_environment(monkeypatch, tmp_path)
+    monkeypatch.setenv("COVERAGE_FILE", "../outside.xml")
+
+    result = main()
+
+    captured = capsys.readouterr()
+
+    assert result == 1
+    assert "must be located inside GITHUB_WORKSPACE" in captured.out
+
+
+def test_action_rejects_absolute_coverage_path_outside_workspace(
+    monkeypatch, tmp_path, capsys
+):
+    configure_action_environment(monkeypatch, tmp_path)
+    monkeypatch.setenv("COVERAGE_FILE", str(tmp_path.parent / "outside.xml"))
+
+    result = main()
+
+    captured = capsys.readouterr()
+
+    assert result == 1
+    assert "must be located inside GITHUB_WORKSPACE" in captured.out
+
+
+def test_action_accepts_nested_coverage_file_path(monkeypatch, tmp_path):
+    _, _, _, _ = configure_action_environment(monkeypatch, tmp_path)
+    monkeypatch.setenv("COVERAGE_FILE", "reports/coverage.xml")
+
+    parsed_paths = []
+
+    monkeypatch.setattr(
+        main_module,
+        "parse_cobertura",
+        lambda path: (
+            parsed_paths.append(path)
+            or SimpleNamespace(
+                total_coverage=85.0,
+                file_coverage={"src/example.py": 85.0},
+            )
+        ),
+    )
+
+    result = main()
+
+    assert result == 0
+    assert parsed_paths == [str(tmp_path / "reports" / "coverage.xml")]
+
+
+def test_action_rejects_coverage_symlink_outside_workspace(
+    monkeypatch, tmp_path, capsys
+):
+    configure_action_environment(monkeypatch, tmp_path)
+
+    outside_file = tmp_path.parent / "outside.xml"
+    outside_file.write_text("<coverage line-rate='1.0'></coverage>")
+
+    symlink = tmp_path / "coverage-link.xml"
+    symlink.symlink_to(outside_file)
+
+    monkeypatch.setenv("COVERAGE_FILE", "coverage-link.xml")
+
+    result = main()
+
+    captured = capsys.readouterr()
+
+    assert result == 1
+    assert "must be located inside GITHUB_WORKSPACE" in captured.out
