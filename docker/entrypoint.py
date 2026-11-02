@@ -1,21 +1,19 @@
-import logging
 import os
 import subprocess
 import sys
 from pathlib import Path
 
-from src.changed_coverage import ChangedCoverageReport, generate_changed_coverage_report
+from src.changed_coverage import (
+    ChangedCoverageReport,
+    generate_changed_coverage_report,
+)
 from src.changed_lines import parse_changed_lines
 from src.enforcer import enforce
+from src.logger_config import configure_logger
 from src.parser import parse_cobertura, parse_line_coverage
 from src.summary import generate_summary
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(levelname)s: %(message)s",
-    stream=sys.stdout,
-)
-logger = logging.getLogger("coverage-gate")
+logger = configure_logger(__name__)
 
 
 def get_input(name, default=None):
@@ -29,13 +27,35 @@ def get_input(name, default=None):
     return value.strip()
 
 
+def resolve_coverage_path(workspace, coverage_file):
+    """Resolve the coverage report path and prevent workspace escapes."""
+    workspace = workspace.resolve()
+    coverage_path = Path(coverage_file)
+
+    if not coverage_path.is_absolute():
+        coverage_path = workspace / coverage_path
+
+    coverage_path = coverage_path.resolve()
+
+    try:
+        coverage_path.relative_to(workspace)
+    except ValueError:
+        raise ValueError(
+            "coverage-file must point to a file inside GITHUB_WORKSPACE."
+        ) from None
+
+    return coverage_path
+
+
 def main():
     logger.info("Starting Coverage Gate Docker Action.")
 
-    workspace = Path(os.environ.get("GITHUB_WORKSPACE", "/github/workspace"))
-    coverage_path = Path(get_input("coverage-file"))
-    if not coverage_path.is_absolute():
-        coverage_path = workspace / coverage_path
+    workspace = Path(os.environ.get("GITHUB_WORKSPACE", "/github/workspace")).resolve()
+
+    coverage_path = resolve_coverage_path(
+        workspace,
+        get_input("coverage-file"),
+    )
 
     threshold = float(get_input("threshold", "80"))
     warning_margin = float(get_input("warning-margin", "5"))
@@ -75,6 +95,7 @@ def main():
 
             with open(event_path, encoding="utf-8") as event_file:
                 event = json.load(event_file)
+
             pull_request = event.get("pull_request", {})
             base_sha = pull_request.get("base", {}).get("sha", base_sha)
             head_sha = pull_request.get("head", {}).get("sha", head_sha)
@@ -82,6 +103,7 @@ def main():
         if base_sha and head_sha:
             try:
                 logger.info("Calculating changed-code coverage.")
+
                 diff_result = subprocess.run(
                     [
                         "git",
@@ -95,6 +117,7 @@ def main():
                     capture_output=True,
                     text=True,
                 )
+
                 changed_lines = parse_changed_lines(diff_result.stdout)
                 line_coverage = parse_line_coverage(
                     coverage_path,
@@ -104,8 +127,12 @@ def main():
                     changed_lines,
                     line_coverage,
                 )
+
             except (OSError, ValueError, subprocess.SubprocessError) as error:
-                logger.warning("Changed-code coverage unavailable: %s", error)
+                logger.warning(
+                    "Changed-code coverage unavailable: %s",
+                    error,
+                )
                 changed_coverage = ChangedCoverageReport(
                     available=False,
                     files=[],
@@ -119,6 +146,7 @@ def main():
     summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
     if summary_path:
         logger.info("Writing GitHub Actions step summary.")
+
         with open(summary_path, "a", encoding="utf-8") as summary_file:
             summary_file.write(
                 generate_summary(
@@ -132,6 +160,7 @@ def main():
     if output_path:
         with open(output_path, "a", encoding="utf-8") as output_file:
             output_file.write(f"coverage={result.coverage}\n")
+
         logger.info("Coverage output written.")
 
     if not result.passed:
