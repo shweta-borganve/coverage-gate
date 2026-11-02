@@ -31,4 +31,45 @@ Install `pytest-cov` and generate a Cobertura XML report:
 
 ```bash
 python -m pip install pytest pytest-cov
+feature/optional-docker-support
 python -m pytest --cov=src --cov-report=xml:coverage.xml
+```
+
+Replace `src` with your project's source directory if needed.
+
+### 2. Add Coverage Gate to your workflow
+
+Add this step to your GitHub Actions workflow after generating the coverage report:
+
+```yaml
+- name: Check test coverage
+  uses: shweta-borganve/coverage-gate@v1.5.1
+  with:
+    coverage-file: coverage.xml
+    threshold: '80'
+```
+
+## Docker Action
+
+A Docker-based version is available for containerized workflows. The existing Composite Action remains unchanged.
+
+See [`docker/README.md`](docker/README.md) for usage and configuration.
+
+## Configuration
+
+| Input | Purpose |
+|---|---|
+| `coverage-file` | Path to the Cobertura XML report |
+| `threshold` | Minimum required coverage (%) |
+| `warning-margin` | Warning range near the threshold |
+| `baseline-coverage` | Optional baseline coverage |
+| `max-regression` | Maximum allowed coverage drop |
+
+## Repository
+
+GitHub: [shweta-borganve/coverage-gate](https://github.com/shweta-borganve/coverage-gate)
+
+**Author:** Shweta Boraganve
+
+python -m pytest --cov=src --cov-report=xml:coverage.xml
+ main

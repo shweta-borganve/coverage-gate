@@ -172,6 +172,25 @@ jobs:
         run: docker run --rm coverage-gate:ci tests/fixtures/sample.xml 80
       - name: 🧪 Run tests in the container
         run: docker compose run --build --rm tests
+      - name: 🐳 Run Docker Action successfully
+        id: docker-pass
+        uses: ./docker
+        with:
+          coverage-file: tests/fixtures/sample.xml
+          threshold: "80"
+      - name: 🎯 Verify Docker Action output
+        env:
+          COVERAGE: ${{ steps.docker-pass.outputs.coverage }}
+        run: test "$COVERAGE" = "85.0"
+      - name: 🕳️ Docker Action fails below threshold
+        id: docker-fail
+        continue-on-error: true
+        uses: ./docker
+        with:
+          coverage-file: tests/fixtures/sample.xml
+          threshold: "90"
+      - name: 🎯 Verify Docker Action failure
+        run: test "${{ steps.docker-fail.outcome }}" = "failure"
 
   dependency-audit:
     name: 🛡️ Dependency audit
