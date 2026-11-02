@@ -1,5 +1,12 @@
 from pathlib import Path
 
+feature/add-coverage-report-parser
+
+import pytest
+
+from docker.entrypoint import resolve_coverage_path
+
+main
 ROOT_DIR = Path(__file__).resolve().parents[1]
 SOURCE_DIR = ROOT_DIR / "src"
 DOCKER_SOURCE_DIR = ROOT_DIR / "docker" / "src"
@@ -34,3 +41,47 @@ def test_docker_action_metadata_is_configured():
     assert "baseline-coverage:" in action_text
     assert "max-regression:" in action_text
     assert "coverage:" in action_text
+feature/add-coverage-report-parser
+
+
+
+def test_resolve_coverage_path_rejects_parent_directory(tmp_path):
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+
+    with pytest.raises(
+        ValueError,
+        match="coverage-file must point to a file inside GITHUB_WORKSPACE",
+    ):
+        resolve_coverage_path(workspace, "../coverage.xml")
+
+
+def test_resolve_coverage_path_rejects_external_absolute_path(tmp_path):
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+
+    outside_file = tmp_path / "coverage.xml"
+
+    with pytest.raises(
+        ValueError,
+        match="coverage-file must point to a file inside GITHUB_WORKSPACE",
+    ):
+        resolve_coverage_path(workspace, str(outside_file))
+
+
+def test_resolve_coverage_path_rejects_symlink_outside_workspace(tmp_path):
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+
+    outside_file = tmp_path / "coverage.xml"
+    outside_file.write_text("<coverage />", encoding="utf-8")
+
+    symlink = workspace / "coverage-link.xml"
+    symlink.symlink_to(outside_file)
+
+    with pytest.raises(
+        ValueError,
+        match="coverage-file must point to a file inside GITHUB_WORKSPACE",
+    ):
+        resolve_coverage_path(workspace, "coverage-link.xml")
+main

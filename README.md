@@ -36,18 +36,29 @@ Install `pytest-cov` and generate a Cobertura XML report:
 ```bash
 python -m pip install pytest pytest-cov
 feature/add-coverage-report-parser
+feature/add-coverage-report-parser
 python -m pytest --cov=src --cov-report=xml:coverage.xml
 ```
 
 Alternatively, use an LCOV-compatible coverage tool to generate an `lcov.info` report.
 
+
+feature/optional-docker-support
+python -m pytest --cov=src --cov-report=xml:coverage.xml
+```
+
+main
 Replace `src` with your project's source directory if needed.
 
 ### 2. Add Coverage Gate to your workflow
 
+feature/add-coverage-report-parser
 Add this step to your GitHub Actions workflow after generating the coverage report.
 
 For Cobertura XML:
+
+Add this step to your GitHub Actions workflow after generating the coverage report:
+main
 
 ```yaml
 - name: Check test coverage
@@ -57,6 +68,7 @@ For Cobertura XML:
     threshold: '80'
 ```
 
+feature/add-coverage-report-parser
 For LCOV:
 
 ```yaml
@@ -74,6 +86,9 @@ Coverage Gate selects the report parser based on the file extension:
 
 ### Docker Action
 
+## Docker Action
+main
+
 A Docker-based version is available for containerized workflows. The existing Composite Action remains unchanged.
 
 See [`docker/README.md`](docker/README.md) for usage and configuration.
@@ -82,7 +97,11 @@ See [`docker/README.md`](docker/README.md) for usage and configuration.
 
 | Input | Purpose |
 |---|---|
+feature/add-coverage-report-parser
 | `coverage-file` | Path to a supported coverage report (`.xml` or `.info`) |
+
+| `coverage-file` | Path to the Cobertura XML report |
+main
 | `threshold` | Minimum required coverage (%) |
 | `warning-margin` | Warning range near the threshold |
 | `baseline-coverage` | Optional baseline coverage |
@@ -95,4 +114,8 @@ GitHub: [shweta-borganve/coverage-gate](https://github.com/shweta-borganve/cover
 **Author:** Shweta Boraganve
 
 python -m pytest --cov=src --cov-report=xml:coverage.xml
+ feature/add-coverage-report-parser
+main
+
+ main
 main

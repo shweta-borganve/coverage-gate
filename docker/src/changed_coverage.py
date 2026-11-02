@@ -1,5 +1,12 @@
 from dataclasses import dataclass
 
+feature/add-coverage-report-parser
+
+from src.logger_config import configure_logger
+
+logger = configure_logger(__name__)
+
+main
 
 @dataclass
 class ChangedFileCoverage:
@@ -22,7 +29,20 @@ def generate_changed_coverage_report(
     line_coverage: dict[str, dict[int, bool]] | None,
 ) -> ChangedCoverageReport:
     """Report coverage for changed lines without enforcing a threshold."""
+ feature/add-coverage-report-parser
     if line_coverage is None:
+
+    logger.info("Generating changed-code coverage report.")
+    logger.debug(
+        "Received changed-line data for %d files.",
+        len(changed_lines),
+    )
+
+    if line_coverage is None:
+        logger.warning(
+            "Changed-code coverage is unavailable because line data is missing."
+        )
+main
         return ChangedCoverageReport(
             available=False,
             files=[],
@@ -32,7 +52,21 @@ def generate_changed_coverage_report(
     results = []
 
     for filename, lines in changed_lines.items():
+ feature/add-coverage-report-parser
         if filename not in line_coverage:
+
+        logger.debug(
+            "Processing %d changed lines for %s.",
+            len(lines),
+            filename,
+        )
+
+        if filename not in line_coverage:
+            logger.warning(
+                "Changed-code coverage is unavailable: no line coverage data for %s.",
+                filename,
+            )
+main
             return ChangedCoverageReport(
                 available=False,
                 files=[],
@@ -46,6 +80,15 @@ def generate_changed_coverage_report(
 
         missing_lines = lines - coverage_for_file.keys()
         if missing_lines:
+feature/add-coverage-report-parser
+
+            logger.warning(
+                "Changed-code coverage is unavailable for %s: "
+                "coverage data is missing for lines %s.",
+                filename,
+                sorted(missing_lines),
+            )
+main
             return ChangedCoverageReport(
                 available=False,
                 files=[],
@@ -63,6 +106,7 @@ def generate_changed_coverage_report(
             line_number for line_number in lines if not coverage_for_file[line_number]
         )
 
+feature/add-coverage-report-parser
         results.append(
             ChangedFileCoverage(
                 filename=filename,
@@ -75,6 +119,39 @@ def generate_changed_coverage_report(
 
     results.sort(key=lambda item: (-item.uncovered_lines, item.filename))
 
+
+        file_result = ChangedFileCoverage(
+            filename=filename,
+            changed_lines=len(lines),
+            covered_lines=len(covered_line_numbers),
+            uncovered_lines=len(uncovered_line_numbers),
+            uncovered_line_numbers=uncovered_line_numbers,
+        )
+        results.append(file_result)
+
+        logger.info(
+            "Changed-code coverage for %s: %d/%d lines covered; %d uncovered.",
+            filename,
+            file_result.covered_lines,
+            file_result.changed_lines,
+            file_result.uncovered_lines,
+        )
+
+        if uncovered_line_numbers:
+            logger.debug(
+                "Uncovered changed lines in %s: %s.",
+                filename,
+                uncovered_line_numbers,
+            )
+
+    results.sort(key=lambda item: (-item.uncovered_lines, item.filename))
+
+    logger.info(
+        "Changed-code coverage report generated successfully for %d files.",
+        len(results),
+    )
+
+main
     return ChangedCoverageReport(
         available=True,
         files=results,
