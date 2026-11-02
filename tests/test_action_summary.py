@@ -1,39 +1,48 @@
 from pathlib import Path
 
-ACTION_FILE = Path(__file__).resolve().parents[1] / "action.yml"
+ROOT_DIR = Path(__file__).resolve().parents[1]
+ACTION_FILE = ROOT_DIR / "action.yml"
+MAIN_FILE = ROOT_DIR / "src" / "main.py"
 
 
-def test_action_uses_summary_generator():
+def test_action_runs_existing_main_module():
     action = ACTION_FILE.read_text(encoding="utf-8")
 
-    assert "from src.summary import generate_summary" in action
-    assert "from src.changed_lines import parse_changed_lines" in action
-    assert "from src.changed_coverage import" in action
-    assert "parse_line_coverage" in action
-    assert "generate_summary(" in action
-    assert "metrics.file_coverage," in action
-    assert "changed_coverage," in action
+    assert "python -m src.main --github-action" in action
+    assert "python - <<'PY'" not in action
+
+
+def test_main_uses_summary_and_changed_coverage_helpers():
+    main = MAIN_FILE.read_text(encoding="utf-8")
+
+    assert "from src.summary import generate_summary" in main
+    assert "from src.changed_lines import parse_changed_lines" in main
+    assert "from src.changed_coverage import" in main
+    assert "parse_line_coverage" in main
+    assert "generate_summary(" in main
+    assert "metrics.file_coverage," in main
+    assert "changed_coverage," in main
 
 
 def test_action_summary_is_optional_for_local_execution():
-    action = ACTION_FILE.read_text(encoding="utf-8")
+    main = MAIN_FILE.read_text(encoding="utf-8")
 
-    assert 'summary_path = os.environ.get("GITHUB_STEP_SUMMARY")' in action
-    assert "if summary_path:" in action
+    assert 'summary_path = os.environ.get("GITHUB_STEP_SUMMARY")' in main
+    assert "if summary_path:" in main
 
 
 def test_action_writes_summary_before_failing():
-    action = ACTION_FILE.read_text(encoding="utf-8")
+    main = MAIN_FILE.read_text(encoding="utf-8")
 
-    summary_position = action.index("generate_summary(")
-    failure_position = action.index("if not result.passed:")
+    summary_position = main.index("generate_summary(")
+    failure_position = main.index("if not result.passed:")
 
     assert summary_position < failure_position
 
 
 def test_changed_coverage_does_not_add_a_failure_condition():
-    action = ACTION_FILE.read_text(encoding="utf-8")
+    main = MAIN_FILE.read_text(encoding="utf-8")
 
-    assert "if not result.passed:" in action
-    assert "if not changed_coverage.available:" not in action
-    assert "raise SystemExit(1)" in action
+    assert "if not result.passed:" in main
+    assert "if not changed_coverage.available:" not in main
+    assert "return 1" in main
