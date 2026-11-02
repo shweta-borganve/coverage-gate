@@ -1,0 +1,35 @@
+name: 'Coverage Gate (Docker)'
+description: 'Docker-based action to check Cobertura XML coverage and fail below threshold'
+
+inputs:
+  coverage-file:
+    description: 'Path to the Cobertura XML coverage report'
+    required: true
+
+  threshold:
+    description: 'Minimum allowed coverage percentage'
+    required: false
+    default: '80'
+
+  warning-margin:
+    description: 'Coverage warning margin in percentage points'
+    required: false
+    default: '5'
+
+  baseline-coverage:
+    description: 'Baseline coverage percentage for regression detection'
+    required: false
+    default: ''
+
+  max-regression:
+    description: 'Maximum allowed coverage regression in percentage points'
+    required: false
+    default: '5'
+
+outputs:
+  coverage:
+    description: 'Current coverage percentage'
+
+runs:
+  using: 'docker'
+  image: 'Dockerfile'
