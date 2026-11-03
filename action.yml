@@ -1,9 +1,9 @@
 name: 'Coverage Gate'
-description: 'Check Cobertura XML coverage and fail below threshold'
+description: 'Check Cobertura XML or LCOV coverage and fail below threshold'
 
 inputs:
   coverage-file:
-    description: 'Path to the Cobertura XML coverage report'
+    description: 'Path to the Cobertura XML or LCOV coverage report'
     required: true
 
   threshold:
