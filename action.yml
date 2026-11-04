@@ -3,7 +3,11 @@ description: 'Check Cobertura XML or LCOV coverage and fail below threshold'
 
 inputs:
   coverage-file:
+ feature/lcov-only
     description: 'Path to the Cobertura XML (.xml) or LCOV (.info) coverage report'
+
+    description: 'Path to the Cobertura XML or LCOV coverage report'
+ main
     required: true
 
   threshold:
@@ -182,4 +186,7 @@ feature/lcov-only
 
         echo "[Coverage Gate] Starting coverage check..."
         python -m src.main --github-action
+feature/lcov-only
 main
+
+ main

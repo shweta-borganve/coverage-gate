@@ -10,10 +10,22 @@ feature/lcov-only
 from src.parser import parse_cobertura, parse_lcov
 
 from src.logger_config import configure_logger
-from src.parser import parse_cobertura, parse_line_coverage
+from src.parser import parse_cobertura, parse_lcov, parse_line_coverage
 from src.summary import generate_summary
 
 logger = configure_logger(__name__)
+
+
+def _parse_coverage_report(file_path: str):
+    """Parse a supported coverage report based on its file extension."""
+    extension = Path(file_path).suffix.lower()
+
+    if extension == ".info":
+        logger.debug("[Coverage Gate] Detected LCOV coverage report.")
+        return parse_lcov(file_path)
+
+    logger.debug("[Coverage Gate] Detected Cobertura XML coverage report.")
+    return parse_cobertura(file_path)
 
 
 def _resolve_coverage_file(workspace: str, configured_path: str) -> str:
@@ -60,8 +72,8 @@ def run_action():
     else:
         logger.info("[Coverage Gate] Baseline regression check is not configured.")
 
-    logger.debug("[Coverage Gate] Reading Cobertura XML report...")
-    metrics = parse_cobertura(coverage_file)
+    logger.debug("[Coverage Gate] Reading coverage report...")
+    metrics = _parse_coverage_report(coverage_file)
     logger.debug("[Coverage Gate] Coverage report parsed successfully.")
 
     logger.debug("[Coverage Gate] Evaluating coverage rules...")
@@ -251,6 +263,7 @@ def main():
 
     try:
 feature/lcov-only
+feature/lcov-only
         file_extension = Path(file_path).suffix.lower()
 
         if file_extension == ".xml":
@@ -266,6 +279,9 @@ feature/lcov-only
 
 
         metrics = parse_cobertura(file_path)
+
+        metrics = _parse_coverage_report(file_path)
+ main
         logger.info("Coverage report parsed successfully.")
 
         logger.info("Evaluating coverage rules.")
