@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from src.parser import parse_cobertura, parse_line_coverage
+from src.parser import parse_cobertura, parse_lcov, parse_line_coverage
 
 FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures"
 
@@ -220,3 +220,62 @@ def test_parse_line_coverage_normalizes_source_path(tmp_path):
     )
 
     assert result == {"src/parser.py": {1: True}}
+
+
+def test_parse_lcov_report(tmp_path):
+    coverage_file = tmp_path / "coverage.info"
+    coverage_file.write_text(
+        """TN:
+SF:src/main.py
+DA:1,1
+DA:2,0
+LF:2
+LH:1
+end_of_record
+TN:
+SF:src/utils.py
+DA:1,2
+DA:2,5
+LF:2
+LH:2
+end_of_record
+""",
+        encoding="utf-8",
+    )
+
+    metrics = parse_lcov(coverage_file)
+
+    assert metrics.total_coverage == 75.0
+    assert metrics.file_coverage == {
+        "src/main.py": 50.0,
+        "src/utils.py": 100.0,
+    }
+
+
+def test_parse_lcov_line_coverage(tmp_path):
+    coverage_file = tmp_path / "coverage.info"
+    coverage_file.write_text(
+        """TN:
+SF:src/main.py
+DA:1,1
+DA:2,0
+LF:2
+LH:1
+end_of_record
+""",
+        encoding="utf-8",
+    )
+
+    result = parse_line_coverage(str(coverage_file))
+
+    assert result == {
+        "src/main.py": {
+            1: True,
+            2: False,
+        }
+    }
+
+
+def test_lcov_file_not_found():
+    with pytest.raises(FileNotFoundError):
+        parse_lcov(FIXTURES_DIR / "missing.info")

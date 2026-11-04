@@ -104,6 +104,124 @@ def parse_cobertura(file_path: str) -> CoverageMetrics:
     return metrics
 
 
+def parse_lcov(file_path: str, root_dir: str | Path | None = None) -> CoverageMetrics:
+    """Parse an LCOV report into coverage metrics."""
+    coverage_file = Path(file_path)
+
+    try:
+        content = coverage_file.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        logger.error("Coverage file not found: %s", file_path)
+        raise FileNotFoundError(f"Coverage file not found: {file_path}")
+
+    if not content.strip():
+        raise ValueError("Empty LCOV coverage report.")
+
+    total_found = 0
+    total_hit = 0
+    file_coverage: dict[str, float] = {}
+    found_source = False
+    found_line_data = False
+
+    records = content.split("end_of_record")
+
+    for index, record in enumerate(records):
+        if not record.strip():
+            continue
+
+        if index == len(records) - 1 and not content.rstrip().endswith("end_of_record"):
+            raise ValueError("Missing end_of_record in LCOV report.")
+
+        source_file = None
+        lines: dict[int, bool] = {}
+        lines_found = None
+        lines_hit = None
+
+        for raw_line in record.splitlines():
+            line = raw_line.strip()
+
+            if line.startswith("SF:"):
+                source_file = line[3:].strip()
+                found_source = True
+
+            elif line.startswith("DA:"):
+                values = line[3:].split(",")
+
+                if len(values) < 2:
+                    raise ValueError("Invalid DA record in LCOV report.")
+
+                try:
+                    line_number = int(values[0])
+                    hits = int(values[1])
+                except ValueError as error:
+                    raise ValueError(
+                        "Invalid line number or hit count in LCOV report."
+                    ) from error
+
+                if line_number < 1 or hits < 0:
+                    raise ValueError("Invalid DA record in LCOV report.")
+
+                lines[line_number] = lines.get(line_number, False) or hits > 0
+
+            elif line.startswith("LF:"):
+                try:
+                    lines_found = int(line[3:])
+                except ValueError as error:
+                    raise ValueError("Invalid LF value in LCOV report.") from error
+
+            elif line.startswith("LH:"):
+                try:
+                    lines_hit = int(line[3:])
+                except ValueError as error:
+                    raise ValueError("Invalid LH value in LCOV report.") from error
+
+        if source_file is None:
+            continue
+
+        if lines:
+            record_found = len(lines)
+            record_hit = sum(lines.values())
+
+            if lines_found is not None and lines_found != record_found:
+                raise ValueError(f"Invalid line coverage counts for {source_file}.")
+
+            if lines_hit is not None and lines_hit != record_hit:
+                raise ValueError(f"Invalid line coverage counts for {source_file}.")
+
+        elif lines_found is not None and lines_hit is not None:
+            record_found = lines_found
+            record_hit = lines_hit
+
+        else:
+            continue
+
+        if record_found < 0 or record_hit < 0 or record_hit > record_found:
+            raise ValueError(f"Invalid line coverage counts for {source_file}.")
+
+        found_line_data = found_line_data or record_found > 0
+
+        total_found += record_found
+        total_hit += record_hit
+
+        if record_found:
+            file_coverage[source_file] = record_hit / record_found * 100
+
+    if not found_source:
+        raise ValueError("Missing line coverage data in LCOV report.")
+
+    if not found_line_data or total_found == 0:
+        raise ValueError("Missing line coverage data in LCOV report.")
+
+    total_coverage = total_hit / total_found * 100
+
+    logger.info("LCOV coverage parsed successfully: %.2f%%", total_coverage)
+
+    return CoverageMetrics(
+        total_coverage=total_coverage,
+        file_coverage=file_coverage,
+    )
+
+
 def _normalize_coverage_filename(
     filename: str,
     source_paths: list[Path],
@@ -134,11 +252,95 @@ def _normalize_coverage_filename(
     return file_path.as_posix()
 
 
+def _parse_lcov_line_data(file_path: str) -> dict[str, dict[int, bool]]:
+    """Extract line-level coverage data from an LCOV report."""
+    coverage_file = Path(file_path)
+
+    try:
+        content = coverage_file.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        logger.error("Coverage file not found: %s", file_path)
+        raise FileNotFoundError(f"Coverage file not found: {file_path}")
+
+    if not content.strip():
+        raise ValueError("Empty LCOV coverage report.")
+
+    file_lines: dict[str, dict[int, bool]] = {}
+    records = content.split("end_of_record")
+
+    for index, record in enumerate(records):
+        if not record.strip():
+            continue
+
+        if index == len(records) - 1 and not content.rstrip().endswith("end_of_record"):
+            raise ValueError("Missing end_of_record in LCOV report.")
+
+        source_file = None
+        lines: dict[int, bool] = {}
+
+        for raw_line in record.splitlines():
+            line = raw_line.strip()
+
+            if line.startswith("SF:"):
+                source_file = line[3:].strip()
+
+            elif line.startswith("DA:"):
+                values = line[3:].split(",")
+
+                if len(values) < 2:
+                    raise ValueError("Invalid DA record in LCOV report.")
+
+                try:
+                    line_number = int(values[0])
+                    hits = int(values[1])
+                except ValueError as error:
+                    raise ValueError(
+                        "Invalid line number or hit count in LCOV report."
+                    ) from error
+
+                if line_number < 1 or hits < 0:
+                    raise ValueError("Invalid DA record in LCOV report.")
+
+                lines[line_number] = lines.get(line_number, False) or hits > 0
+
+        if source_file is not None:
+            file_lines[source_file] = lines
+
+    return file_lines
+
+
+def _normalize_lcov_line_data(
+    raw_file_lines: dict[str, dict[int, bool]],
+    working_directory: Path,
+) -> dict[str, dict[int, bool]]:
+    """Normalize LCOV source filenames."""
+    normalized_lines = {}
+
+    for filename, lines in raw_file_lines.items():
+        normalized_filename = _normalize_coverage_filename(
+            filename,
+            [],
+            working_directory,
+        )
+
+        normalized_lines[normalized_filename] = lines
+
+    return normalized_lines
+
+
 def parse_line_coverage(
     file_path: str,
     root_dir: str | Path | None = None,
 ) -> dict[str, dict[int, bool]]:
     """Return line coverage keyed by repository-relative source filenames."""
+    coverage_file = Path(file_path).resolve()
+    working_directory = (
+        Path(root_dir).resolve() if root_dir is not None else Path.cwd().resolve()
+    )
+
+    if coverage_file.suffix.lower() == ".info":
+        raw_file_lines = _parse_lcov_line_data(str(coverage_file))
+        return _normalize_lcov_line_data(raw_file_lines, working_directory)
 
     try:
         tree = ET.parse(file_path)
@@ -156,11 +358,6 @@ def parse_line_coverage(
     if root.tag != "coverage":
         logger.error("Unsupported coverage report root: %s", root.tag)
         raise ValueError(f"Unsupported coverage report root: {root.tag}")
-
-    coverage_file = Path(file_path).resolve()
-    working_directory = (
-        Path(root_dir).resolve() if root_dir is not None else Path.cwd().resolve()
-    )
 
     source_paths = []
     sources_element = root.find("sources")
