@@ -209,7 +209,17 @@ def run_action():
 
     if summary_path:
         with open(summary_path, "a", encoding="utf-8") as summary_file:
+ feature/github-pr-coverage-comments
             summary_file.write(summary)
+
+            summary_file.write(
+                generate_summary(
+                    result,
+                    metrics.file_coverage,
+                    changed_coverage,
+                )
+            )
+ main
 
         logger.debug("[Coverage Gate] GitHub Actions summary written.")
     else:
@@ -217,8 +227,10 @@ def run_action():
             "[Coverage Gate] GitHub Actions summary path is unavailable; "
             "skipping summary."
         )
+ feature/github-pr-coverage-comments
 
     _publish_pr_comment(summary)
+main
 
     output_path = os.environ.get("GITHUB_OUTPUT")
 
