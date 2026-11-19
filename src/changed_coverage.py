@@ -19,13 +19,16 @@ class ChangedCoverageReport:
     available: bool
     files: list[ChangedFileCoverage]
     message: str
+    total_changed_lines: int = 0
+    covered_changed_lines: int = 0
+    coverage_percentage: float | None = None
 
 
 def generate_changed_coverage_report(
     changed_lines: dict[str, set[int]],
     line_coverage: dict[str, dict[int, bool]] | None,
 ) -> ChangedCoverageReport:
-    """Report coverage for changed lines without enforcing a threshold."""
+    """Report aggregate and per-file coverage for changed lines."""
     logger.info("Generating changed-code coverage report.")
     logger.debug(
         "Received changed-line data for %d files.",
@@ -118,13 +121,31 @@ def generate_changed_coverage_report(
 
     results.sort(key=lambda item: (-item.uncovered_lines, item.filename))
 
+    total_changed_lines = sum(item.changed_lines for item in results)
+    covered_changed_lines = sum(item.covered_lines for item in results)
+
+    coverage_percentage = (
+        covered_changed_lines / total_changed_lines * 100
+        if total_changed_lines
+        else None
+    )
+
     logger.info(
-        "Changed-code coverage report generated successfully for %d files.",
-        len(results),
+        "Aggregate changed-code coverage: %s (%d/%d lines).",
+        (
+            f"{coverage_percentage:.2f}%"
+            if coverage_percentage is not None
+            else "not applicable"
+        ),
+        covered_changed_lines,
+        total_changed_lines,
     )
 
     return ChangedCoverageReport(
         available=True,
         files=results,
         message="Changed-code coverage report generated.",
+        total_changed_lines=total_changed_lines,
+        covered_changed_lines=covered_changed_lines,
+        coverage_percentage=coverage_percentage,
     )

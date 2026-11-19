@@ -11,6 +11,11 @@ inputs:
     required: true
     default: '80'
 
+  changed-lines-threshold:
+    description: 'Minimum allowed coverage percentage for changed lines'
+    required: false
+    default: '0'
+
   warning-margin:
     description: 'Coverage warning margin in percentage points'
     required: false
@@ -49,6 +54,14 @@ outputs:
     description: 'Whether the coverage check passed'
     value: ${{ steps.run-coverage.outputs.passed }}
 
+  changed-lines-coverage:
+    description: 'Coverage percentage for changed lines'
+    value: ${{ steps.run-coverage.outputs.changed-lines-coverage }}
+
+  changed-lines-passed:
+    description: 'Whether the changed-line coverage check passed'
+    value: ${{ steps.run-coverage.outputs.changed-lines-passed }}
+
 runs:
   using: 'composite'
   steps:
@@ -84,6 +97,7 @@ runs:
         ACTION_PATH: ${{ github.action_path }}
         COVERAGE_FILE: ${{ inputs.coverage-file }}
         COVERAGE_THRESHOLD: ${{ inputs.threshold }}
+        CHANGED_LINES_THRESHOLD: ${{ inputs.changed-lines-threshold }}
         WARNING_MARGIN: ${{ inputs.warning-margin }}
         BASELINE_COVERAGE: ${{ inputs.baseline-coverage }}
         MAX_REGRESSION: ${{ inputs.max-regression }}

@@ -31,18 +31,18 @@ def test_action_summary_is_optional_for_local_execution():
     assert "if summary_path:" in main
 
 
-def test_action_writes_summary_before_failing():
+def test_action_writes_summary_before_returning_failure():
     main = MAIN_FILE.read_text(encoding="utf-8")
 
     summary_position = main.index("generate_summary(")
-    failure_position = main.index("if not result.passed:")
+    return_position = main.index("return 0 if final_passed else 1")
 
-    assert summary_position < failure_position
+    assert summary_position < return_position
 
 
-def test_changed_coverage_does_not_add_a_failure_condition():
+def test_changed_coverage_enforcement_affects_final_action_result():
     main = MAIN_FILE.read_text(encoding="utf-8")
 
-    assert "if not result.passed:" in main
-    assert "if not changed_coverage.available:" not in main
-    assert "return 1" in main
+    assert "changed_result.passed" in main
+    assert "final_passed = result.passed and changed_result.passed" in main
+    assert "return 0 if final_passed else 1" in main

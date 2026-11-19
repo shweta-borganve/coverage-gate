@@ -8,7 +8,7 @@ from src.changed_coverage import (
     generate_changed_coverage_report,
 )
 from src.changed_lines import parse_changed_lines
-from src.enforcer import enforce
+from src.enforcer import enforce, enforce_changed_coverage
 from src.logger_config import configure_logger
 from src.parser import parse_cobertura, parse_line_coverage
 from src.summary import generate_summary
@@ -58,6 +58,7 @@ def main():
     )
 
     threshold = float(get_input("threshold", "80"))
+    changed_lines_threshold = float(get_input("changed-lines-threshold", "0"))
     warning_margin = float(get_input("warning-margin", "5"))
     baseline_text = get_input("baseline-coverage", "")
     baseline_coverage = float(baseline_text) if baseline_text else None
@@ -143,6 +144,14 @@ def main():
                     ),
                 )
 
+    changed_result = enforce_changed_coverage(
+        changed_coverage,
+        changed_lines_threshold,
+    )
+    logger.info("%s", changed_result.message)
+
+    final_passed = result.passed and changed_result.passed
+
     summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
     if summary_path:
         logger.info("Writing GitHub Actions step summary.")
@@ -153,17 +162,27 @@ def main():
                     result,
                     metrics.file_coverage,
                     changed_coverage,
+                    changed_result,
                 )
             )
 
     output_path = os.environ.get("GITHUB_OUTPUT")
     if output_path:
+        changed_coverage_output = (
+            "" if changed_result.coverage is None else str(changed_result.coverage)
+        )
+
         with open(output_path, "a", encoding="utf-8") as output_file:
             output_file.write(f"coverage={result.coverage}\n")
+            output_file.write(f"changed-lines-coverage={changed_coverage_output}\n")
+            output_file.write(
+                f"changed-lines-passed={str(changed_result.passed).lower()}\n"
+            )
+            output_file.write(f"passed={str(final_passed).lower()}\n")
 
-        logger.info("Coverage output written.")
+        logger.info("Coverage outputs written.")
 
-    if not result.passed:
+    if not final_passed:
         logger.error("Coverage Gate failed.")
         return 1
 

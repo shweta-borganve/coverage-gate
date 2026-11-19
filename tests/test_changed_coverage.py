@@ -91,3 +91,29 @@ def test_report_is_unavailable_when_changed_line_data_is_missing():
     assert report.available is False
     assert "not available" in report.message.lower()
     assert "12" in report.message
+
+
+def test_report_calculates_aggregate_changed_line_coverage():
+    report = generate_changed_coverage_report(
+        {
+            "src/main.py": {10, 11, 12},
+            "src/parser.py": {20, 21},
+        },
+        {
+            "src/main.py": {10: True, 11: False, 12: True},
+            "src/parser.py": {20: True, 21: False},
+        },
+    )
+
+    assert report.total_changed_lines == 5
+    assert report.covered_changed_lines == 3
+    assert report.coverage_percentage == 60.0
+
+
+def test_report_has_no_coverage_percentage_when_no_lines_changed():
+    report = generate_changed_coverage_report({}, {})
+
+    assert report.available is True
+    assert report.total_changed_lines == 0
+    assert report.covered_changed_lines == 0
+    assert report.coverage_percentage is None
