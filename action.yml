@@ -31,6 +31,14 @@ outputs:
     description: 'Current coverage percentage'
     value: ${{ steps.run-coverage.outputs.coverage }}
 
+  threshold:
+    description: 'Required coverage threshold'
+    value: ${{ steps.run-coverage.outputs.threshold }}
+
+  passed:
+    description: 'Whether the coverage check passed'
+    value: ${{ steps.run-coverage.outputs.passed }}
+
 runs:
   using: 'composite'
   steps:
