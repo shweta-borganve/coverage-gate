@@ -457,3 +457,89 @@ def test_action_rejects_coverage_symlink_outside_workspace(
 
     assert result == 1
     assert "must be located inside GITHUB_WORKSPACE" in captured.out
+
+
+def test_action_publishes_pr_comment(monkeypatch, tmp_path):
+    configure_action_environment(monkeypatch, tmp_path)
+
+    monkeypatch.setenv("PR_EVENT_NAME", "pull_request")
+    monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+    monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repo")
+    monkeypatch.setenv("PR_NUMBER", "42")
+    monkeypatch.setenv("GITHUB_API_URL", "https://api.github.com")
+    monkeypatch.setenv("ENABLE_PR_COMMENT", "true")
+
+    published_comments = []
+
+    def fake_publish_pr_comment(**kwargs):
+        published_comments.append(kwargs)
+        return "created"
+
+    monkeypatch.setattr(
+        main_module,
+        "publish_pr_comment",
+        fake_publish_pr_comment,
+    )
+
+    result = main()
+
+    assert result == 0
+    assert len(published_comments) == 1
+
+    comment = published_comments[0]
+
+    assert comment["token"] == "test-token"
+    assert comment["repository"] == "owner/repo"
+    assert comment["pull_number"] == "42"
+    assert comment["api_url"] == "https://api.github.com"
+    assert "Action summary" in comment["summary"]
+
+
+def test_action_skips_pr_comment_when_disabled(monkeypatch, tmp_path):
+    configure_action_environment(monkeypatch, tmp_path)
+
+    monkeypatch.setenv("PR_EVENT_NAME", "pull_request")
+    monkeypatch.setenv("ENABLE_PR_COMMENT", "false")
+    monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+    monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repo")
+    monkeypatch.setenv("PR_NUMBER", "42")
+
+    def fail_if_called(**_kwargs):
+        raise AssertionError("PR comment should not be published.")
+
+    monkeypatch.setattr(
+        main_module,
+        "publish_pr_comment",
+        fail_if_called,
+    )
+
+    result = main()
+
+    assert result == 0
+
+
+def test_action_continues_when_pr_comment_api_fails(monkeypatch, tmp_path, capsys):
+    configure_action_environment(monkeypatch, tmp_path)
+
+    monkeypatch.setenv("PR_EVENT_NAME", "pull_request")
+    monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+    monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repo")
+    monkeypatch.setenv("PR_NUMBER", "42")
+
+    def fail_to_publish(**_kwargs):
+        raise OSError("GitHub API unavailable")
+
+    monkeypatch.setattr(
+        main_module,
+        "publish_pr_comment",
+        fail_to_publish,
+    )
+
+    result = main()
+
+    captured = capsys.readouterr()
+
+    assert result == 0
+    assert "Could not publish PR comment" in captured.out
+    assert "GitHub API unavailable" in captured.out
+    assert "[Coverage Gate] RESULT: PASSED" in captured.out
