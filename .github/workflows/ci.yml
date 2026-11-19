@@ -96,14 +96,14 @@ jobs:
         with:
           persist-credentials: false
       - name: 🌈 Scan workflows with zizmor
-        uses: zizmorcore/zizmor-action@53290badfa369cb0bf7ad16342cb62c2fa47ac7b # v0.8.0
+        uses: zizmorcore/zizmor-action@45d7276c9ca790aabd705e31ca99c6185c3e76dd # v0.8.1
         with:
           advanced-security: false
           inputs: .github/workflows
           min-severity: medium
           version: v1.31.1
       - name: 🔒 Check immutable action references
-        uses: joshjohanning/ensure-immutable-actions@aaa3ba61b950ead2be895ea36a561a5eb11dd82b # v2.7.2
+        uses: joshjohanning/ensure-immutable-actions@8962e4b529ca98ec01992c65d0af9efba9eb88b5 # v2.7.3
         with:
           exclude-workflows: published-action-smoke.yml
 
