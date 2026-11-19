@@ -3,6 +3,17 @@ from src.logger_config import configure_logger
 logger = configure_logger(__name__)
 
 
+def _format_filename(filename):
+    """Safely format filenames for GitHub Markdown tables."""
+    escaped_filename = str(filename)
+    escaped_filename = escaped_filename.replace("\\", "\\\\")
+    escaped_filename = escaped_filename.replace("`", "\\`")
+    escaped_filename = escaped_filename.replace("|", "&#124;")
+    escaped_filename = escaped_filename.replace("\n", "&#10;")
+    escaped_filename = escaped_filename.replace("\r", "&#13;")
+    return f"`{escaped_filename}`"
+
+
 def generate_summary(
     result,
     file_coverage=None,
@@ -75,7 +86,7 @@ def generate_summary(
                 filename,
                 coverage,
             )
-            summary_lines.append(f"| `{filename}` | {coverage:.1f}% |")
+            summary_lines.append(f"| {_format_filename(filename)} | {coverage:.1f}% |")
 
         summary_lines.extend(
             [
@@ -136,8 +147,10 @@ def generate_summary(
                 )
 
                 summary_lines.append(
-                    f"| `{item.filename}` | {item.changed_lines} | "
-                    f"{item.covered_lines} | {item.uncovered_lines} | "
+                    f"| {_format_filename(item.filename)} | "
+                    f"{item.changed_lines} | "
+                    f"{item.covered_lines} | "
+                    f"{item.uncovered_lines} | "
                     f"{line_numbers} |"
                 )
 

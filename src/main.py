@@ -61,19 +61,17 @@ def run_action():
     logger.debug("[Coverage Gate] Warning margin: %.2f%%", warning_margin)
 
     if baseline_coverage is not None:
-        logger.info("[Coverage Gate] Baseline coverage: %.2f%%", baseline_coverage)
+        logger.info(
+            "[Coverage Gate] Baseline coverage: %.2f%%",
+            baseline_coverage,
+        )
         logger.debug(
             "[Coverage Gate] Maximum allowed regression: %.2f percentage points",
             max_regression,
         )
-    else:
-        logger.info("[Coverage Gate] Baseline regression check is not configured.")
 
-    logger.debug("[Coverage Gate] Reading coverage report...")
     metrics = _parse_coverage_report(coverage_file)
-    logger.debug("[Coverage Gate] Coverage report parsed successfully.")
 
-    logger.debug("[Coverage Gate] Evaluating coverage rules...")
     result = enforce(
         metrics,
         threshold,
@@ -82,29 +80,18 @@ def run_action():
         max_regression,
     )
 
-    logger.info("[Coverage Gate] Measured line coverage: %.2f%%", result.coverage)
-    logger.info("[Coverage Gate] %s", result.message)
-
     changed_coverage = ChangedCoverageReport(
         available=False,
         files=[],
-        message=(
-            "Changed-code coverage not available: " "pull request diff is unavailable."
-        ),
+        message="Changed-code coverage not available: pull request diff is unavailable.",
     )
 
     if os.environ.get("PR_EVENT_NAME") == "pull_request":
-        logger.debug("[Coverage Gate] Checking changed-code coverage...")
-
         base_sha = os.environ.get("PR_BASE_SHA")
         head_sha = os.environ.get("PR_HEAD_SHA")
 
         if base_sha and head_sha:
             try:
-                logger.debug(
-                    "[Coverage Gate] Comparing pull request changes with the base revision..."
-                )
-
                 diff_result = subprocess.run(
                     [
                         "git",
@@ -120,9 +107,7 @@ def run_action():
                 )
 
                 changed_lines = parse_changed_lines(diff_result.stdout)
-                logger.debug("[Coverage Gate] Changed lines identified.")
 
-                logger.debug("[Coverage Gate] Reading line-level coverage data...")
                 line_coverage = parse_line_coverage(
                     coverage_file,
                     root_dir=workspace,
@@ -133,10 +118,10 @@ def run_action():
                     line_coverage,
                 )
 
-                logger.debug(
-                    "[Coverage Gate] Changed-code coverage analysis completed."
+                logger.info(
+                    "[Coverage Gate] %s",
+                    changed_coverage.message,
                 )
-                logger.info("[Coverage Gate] %s", changed_coverage.message)
 
             except (OSError, ValueError, subprocess.SubprocessError) as exc:
                 logger.warning(
@@ -156,8 +141,8 @@ def run_action():
                 )
         else:
             logger.warning(
-                "[Coverage Gate] WARNING: Base or head commit SHA is "
-                "unavailable; skipping changed-code coverage."
+                "[Coverage Gate] Base or head commit SHA is unavailable; "
+                "skipping changed-code coverage."
             )
     else:
         logger.info(
@@ -168,7 +153,6 @@ def run_action():
     summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
 
     if summary_path:
-        logger.debug("[Coverage Gate] Writing GitHub Actions step summary...")
         with open(summary_path, "a", encoding="utf-8") as summary_file:
             summary_file.write(
                 generate_summary(
@@ -177,24 +161,53 @@ def run_action():
                     changed_coverage,
                 )
             )
-        logger.debug("[Coverage Gate] Step summary written successfully.")
+
+        logger.debug("[Coverage Gate] GitHub Actions summary written.")
     else:
-        logger.info("[Coverage Gate] GitHub Actions summary path is unavailable.")
+        logger.info(
+            "[Coverage Gate] GitHub Actions summary path is unavailable; "
+            "skipping summary."
+        )
 
     output_path = os.environ.get("GITHUB_OUTPUT")
 
     if output_path:
-        logger.debug("[Coverage Gate] Publishing coverage output...")
         with open(output_path, "a", encoding="utf-8") as output:
             output.write(f"coverage={result.coverage}\n")
+            output.write(f"threshold={result.threshold}\n")
+            output.write(f"passed={str(result.passed).lower()}\n")
+
+        logger.debug("[Coverage Gate] GitHub Actions outputs published.")
     else:
-        logger.info("[Coverage Gate] GitHub Actions output path is unavailable.")
+        logger.info(
+            "[Coverage Gate] GitHub Actions output path is unavailable; "
+            "skipping outputs."
+        )
+
+    logger.info("")
+    logger.info("========== Coverage Gate Result ==========")
+    logger.info("Coverage:  %.1f%%", result.coverage)
+    logger.info("Threshold: %.1f%%", result.threshold)
+    logger.info("Details:   %s", result.message)
+    logger.info(
+        "[Coverage Gate] RESULT: %s",
+        "PASSED" if result.passed else "FAILED",
+    )
+
+    if result.warning:
+        logger.warning("Warning: Coverage is close to the required threshold.")
+
+    if result.regression:
+        logger.error(
+            "REGRESSION: Coverage dropped by %.1f percentage points.",
+            result.regression_amount,
+        )
+
+    logger.info("===========================================")
 
     if not result.passed:
-        logger.error("[Coverage Gate] RESULT: FAILED")
         return 1
 
-    logger.info("[Coverage Gate] RESULT: PASSED")
     return 0
 
 
@@ -255,13 +268,9 @@ def main():
         logger.error("Invalid max regression: %s", max_regression_text)
         return 1
 
-    logger.info("Reading coverage report.")
-
     try:
         metrics = _parse_coverage_report(file_path)
-        logger.info("Coverage report parsed successfully.")
 
-        logger.info("Evaluating coverage rules.")
         result = enforce(
             metrics,
             threshold,
@@ -279,6 +288,7 @@ def main():
         logger.error("Coverage Gate failed: %s", result.message)
 
     logger.info("Coverage Gate finished.")
+
     return 0 if result.passed else 1
 
 
