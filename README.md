@@ -52,7 +52,22 @@ Then configure the action:
     enable-pr-comment: 'true'
 ```
 
-Comments are updated instead of duplicated. If publishing fails (for example, on fork PRs with read-only tokens), a warning is logged and the coverage result is unaffected.
+Coverage Gate searches for its existing comment and updates it on subsequent runs.
+
+To prevent multiple workflow runs from publishing comments for the same PR simultaneously, add workflow-level concurrency:
+
+```yaml
+concurrency:
+  group: coverage-gate-pr-${{ github.event.pull_request.number || github.ref }}
+  queue: max
+  cancel-in-progress: false
+```
+
+Use the same concurrency group in every workflow in your repository that publishes Coverage Gate comments. This ensures those workflows run one at a time for the same PR.
+
+This concurrency setting must be configured in the workflow that uses the action. It cannot be configured from inside the composite action itself.
+
+If publishing fails (for example, on fork PRs with read-only tokens), a warning is logged and the coverage result is unaffected.
 
 ## Configuration
 
