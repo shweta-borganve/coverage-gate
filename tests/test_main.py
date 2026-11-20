@@ -255,14 +255,17 @@ def test_action_with_baseline_regression_failure(monkeypatch, tmp_path, capsys):
 
 
 def test_action_skips_changed_coverage_for_non_pr_event(monkeypatch, tmp_path, capsys):
-    configure_action_environment(monkeypatch, tmp_path)
+    _, _, output_path, _ = configure_action_environment(monkeypatch, tmp_path)
 
     result = main()
 
     captured = capsys.readouterr()
+    output = output_path.read_text(encoding="utf-8")
 
     assert result == 0
     assert "Not a pull request event" in captured.out
+    assert "changed-lines-passed=skipped" in output
+    assert "changed-lines-coverage=" in output
 
 
 def test_action_skips_changed_coverage_when_pr_shas_are_missing(

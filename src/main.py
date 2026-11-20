@@ -255,10 +255,14 @@ def run_action():
                 changed_result.coverage if changed_result.coverage is not None else ""
             )
 
-            output.write(f"changed-lines-coverage={changed_coverage_value}\n")
-            output.write(
-                "changed-lines-passed=" f"{str(changed_result.passed).lower()}\n"
+            changed_lines_status = (
+                str(changed_result.passed).lower()
+                if changed_result.coverage is not None
+                else "skipped"
             )
+
+            output.write(f"changed-lines-coverage={changed_coverage_value}\n")
+            output.write(f"changed-lines-passed={changed_lines_status}\n")
 
         logger.debug("[Coverage Gate] GitHub Actions outputs published.")
     else:

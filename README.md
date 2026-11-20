@@ -60,6 +60,7 @@ Comments are updated instead of duplicated. If publishing fails (for example, on
 |---|---|---|
 | `coverage-file` | Coverage report path | Required |
 | `threshold` | Minimum coverage (%) | `80` |
+| `changed-lines-threshold` | Minimum changed-line coverage (%) | `0` |
 | `warning-margin` | Warning range (%) | `5` |
 | `baseline-coverage` | Baseline coverage (%) | Empty |
 | `max-regression` | Maximum coverage drop (%) | `5` |
