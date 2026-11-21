@@ -26,6 +26,16 @@ inputs:
     required: false
     default: '5'
 
+  github-token:
+    description: 'GitHub token used to create or update pull request comments'
+    required: false
+    default: ''
+
+  enable-pr-comment:
+    description: 'Enable or disable pull request coverage comments'
+    required: false
+    default: 'true'
+
 outputs:
   coverage:
     description: 'Current coverage percentage'
@@ -66,6 +76,11 @@ runs:
         PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
         PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         PR_EVENT_NAME: ${{ github.event_name }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
+        GITHUB_API_URL: ${{ github.api_url }}
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        ENABLE_PR_COMMENT: ${{ inputs.enable-pr-comment }}
         ACTION_PATH: ${{ github.action_path }}
         COVERAGE_FILE: ${{ inputs.coverage-file }}
         COVERAGE_THRESHOLD: ${{ inputs.threshold }}

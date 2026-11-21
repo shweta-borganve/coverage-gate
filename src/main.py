@@ -8,6 +8,7 @@ from src.changed_lines import parse_changed_lines
 from src.enforcer import enforce
 from src.logger_config import configure_logger
 from src.parser import parse_cobertura, parse_lcov, parse_line_coverage
+from src.pr_comment import publish_pr_comment
 from src.summary import generate_summary
 
 logger = configure_logger(__name__)
@@ -38,6 +39,54 @@ def _resolve_coverage_file(workspace: str, configured_path: str) -> str:
         ) from error
 
     return str(coverage_path)
+
+
+def _publish_pr_comment(summary: str) -> None:
+    """Publish or update a PR comment without affecting the coverage result."""
+    if os.environ.get("PR_EVENT_NAME") != "pull_request":
+        logger.debug("[Coverage Gate] Skipping PR comment: not a pull request event.")
+        return
+
+    enabled = os.environ.get("ENABLE_PR_COMMENT", "true").strip().lower()
+
+    if enabled not in {"true", "1", "yes"}:
+        logger.info("[Coverage Gate] PR comments are disabled.")
+        return
+
+    token = os.environ.get("GITHUB_TOKEN", "")
+    repository = os.environ.get("GITHUB_REPOSITORY", "")
+    pull_number = os.environ.get("PR_NUMBER", "")
+    api_url = os.environ.get("GITHUB_API_URL", "https://api.github.com")
+
+    if not token:
+        logger.warning(
+            "[Coverage Gate] PR comment skipped: GitHub token is unavailable."
+        )
+        return
+
+    try:
+        result = publish_pr_comment(
+            summary=summary,
+            token=token,
+            repository=repository,
+            pull_number=pull_number,
+            api_url=api_url,
+        )
+        logger.info(
+            "[Coverage Gate] PR comment %s successfully.",
+            result,
+        )
+    except (
+        OSError,
+        ValueError,
+        TypeError,
+        TimeoutError,
+        subprocess.SubprocessError,
+    ) as error:
+        logger.warning(
+            "[Coverage Gate] WARNING: Could not publish PR comment: %s",
+            error,
+        )
 
 
 def run_action():
@@ -150,17 +199,17 @@ def run_action():
             "skipping changed-code coverage."
         )
 
+    summary = generate_summary(
+        result,
+        metrics.file_coverage,
+        changed_coverage,
+    )
+
     summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
 
     if summary_path:
         with open(summary_path, "a", encoding="utf-8") as summary_file:
-            summary_file.write(
-                generate_summary(
-                    result,
-                    metrics.file_coverage,
-                    changed_coverage,
-                )
-            )
+            summary_file.write(summary)
 
         logger.debug("[Coverage Gate] GitHub Actions summary written.")
     else:
@@ -168,6 +217,8 @@ def run_action():
             "[Coverage Gate] GitHub Actions summary path is unavailable; "
             "skipping summary."
         )
+
+    _publish_pr_comment(summary)
 
     output_path = os.environ.get("GITHUB_OUTPUT")
 
