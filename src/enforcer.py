@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 
+from src.changed_coverage import ChangedCoverageReport
 from src.logger_config import configure_logger
 from src.parser import CoverageMetrics
 
@@ -15,6 +16,15 @@ class EnforcementResult:
     threshold: float
     baseline_coverage: float | None
     regression_amount: float
+    message: str
+
+
+@dataclass
+class ChangedCoverageEnforcementResult:
+    passed: bool
+    coverage: float | None
+    threshold: float
+    available: bool
     message: str
 
 
@@ -144,3 +154,69 @@ def enforce(
     logger.debug("Enforcement result: %s", result)
 
     return result
+
+
+def enforce_changed_coverage(
+    report: ChangedCoverageReport,
+    threshold: float,
+) -> ChangedCoverageEnforcementResult:
+    """Enforce a minimum coverage percentage for changed lines."""
+    logger.info("Starting changed-line coverage enforcement.")
+
+    if not 0 <= threshold <= 100:
+        logger.error(
+            "Invalid changed-lines threshold: %.1f. Expected a value from 0 to 100.",
+            threshold,
+        )
+        raise ValueError("Changed-lines threshold must be between 0 and 100")
+
+    if not report.available:
+        message = (
+            "Changed-line coverage enforcement skipped: "
+            "coverage data is unavailable."
+        )
+        logger.warning(message)
+
+        return ChangedCoverageEnforcementResult(
+            passed=True,
+            coverage=None,
+            threshold=threshold,
+            available=False,
+            message=message,
+        )
+
+    if report.coverage_percentage is None:
+        message = (
+            "Changed-line coverage enforcement skipped: " "no changed lines were found."
+        )
+        logger.info(message)
+
+        return ChangedCoverageEnforcementResult(
+            passed=True,
+            coverage=None,
+            threshold=threshold,
+            available=True,
+            message=message,
+        )
+
+    coverage = report.coverage_percentage
+    passed = coverage >= threshold
+    status = "PASS" if passed else "FAIL"
+
+    message = (
+        f"Changed-line coverage {coverage:.1f}% "
+        f"vs threshold {threshold:.1f}% — {status}"
+    )
+
+    if passed:
+        logger.info(message)
+    else:
+        logger.error(message)
+
+    return ChangedCoverageEnforcementResult(
+        passed=passed,
+        coverage=coverage,
+        threshold=threshold,
+        available=True,
+        message=message,
+    )

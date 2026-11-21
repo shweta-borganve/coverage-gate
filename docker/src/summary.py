@@ -18,10 +18,15 @@ def generate_summary(
     result,
     file_coverage=None,
     changed_coverage=None,
+    changed_enforcement=None,
 ):
     logger.info("Generating Coverage Gate summary.")
 
-    status = "PASS" if result.passed else "FAIL"
+    final_passed = result.passed and (
+        changed_enforcement is None or changed_enforcement.passed
+    )
+
+    status = "PASS" if final_passed else "FAIL"
     warning_status = "Yes" if result.warning else "No"
 
     logger.debug(
@@ -60,6 +65,33 @@ def generate_summary(
     else:
         logger.debug("No coverage regression detected for the summary.")
         summary_lines.append("- **Regression:** No — within the allowed limit")
+
+    if changed_enforcement is not None:
+        summary_lines.extend(
+            [
+                "",
+                "### Changed-Line Coverage Enforcement",
+                "",
+                f"- **Required threshold:** {changed_enforcement.threshold:.1f}%",
+            ]
+        )
+
+        if not changed_enforcement.available:
+            summary_lines.append(
+                "- **Status:** Skipped (changed-line coverage unavailable)"
+            )
+            summary_lines.append(f"- **Details:** {changed_enforcement.message}")
+        elif changed_enforcement.coverage is None:
+            summary_lines.append("- **Coverage:** Not applicable (no changed lines)")
+            summary_lines.append("- **Status:** Skipped")
+        else:
+            enforcement_status = "PASS" if changed_enforcement.passed else "FAIL"
+            summary_lines.extend(
+                [
+                    f"- **Coverage:** {changed_enforcement.coverage:.1f}%",
+                    f"- **Status:** {enforcement_status}",
+                ]
+            )
 
     if file_coverage:
         logger.info(
@@ -119,6 +151,15 @@ def generate_summary(
                 "Changed-code coverage is available for %d files.",
                 len(changed_coverage.files),
             )
+
+            if changed_coverage.coverage_percentage is not None:
+                summary_lines.append(
+                    f"**Aggregate changed-line coverage:** "
+                    f"{changed_coverage.coverage_percentage:.1f}% "
+                    f"({changed_coverage.covered_changed_lines}/"
+                    f"{changed_coverage.total_changed_lines} lines)"
+                )
+                summary_lines.append("")
 
             summary_lines.extend(
                 [

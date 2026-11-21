@@ -18,6 +18,7 @@ def configure_action_environment(monkeypatch, tmp_path, threshold="80"):
     monkeypatch.setenv("WARNING_MARGIN", "5")
     monkeypatch.setenv("BASELINE_COVERAGE", "")
     monkeypatch.setenv("MAX_REGRESSION", "5")
+    monkeypatch.setenv("CHANGED_LINES_THRESHOLD", "0")
     monkeypatch.setenv("PR_EVENT_NAME", "push")
     monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary_path))
     monkeypatch.setenv("GITHUB_OUTPUT", str(output_path))
@@ -34,8 +35,17 @@ def configure_action_environment(monkeypatch, tmp_path, threshold="80"):
         lambda _path: metrics,
     )
 
-    def fake_generate_summary(result, file_coverage, changed_coverage):
-        return "Action summary\n" f"{changed_coverage.message}\n"
+    def fake_generate_summary(
+        result,
+        file_coverage,
+        changed_coverage,
+        changed_enforcement,
+    ):
+        return (
+            "Action summary\n"
+            f"{changed_coverage.message}\n"
+            f"{changed_enforcement.message}\n"
+        )
 
     monkeypatch.setattr(
         main_module,
@@ -245,14 +255,17 @@ def test_action_with_baseline_regression_failure(monkeypatch, tmp_path, capsys):
 
 
 def test_action_skips_changed_coverage_for_non_pr_event(monkeypatch, tmp_path, capsys):
-    configure_action_environment(monkeypatch, tmp_path)
+    _, _, output_path, _ = configure_action_environment(monkeypatch, tmp_path)
 
     result = main()
 
     captured = capsys.readouterr()
+    output = output_path.read_text(encoding="utf-8")
 
     assert result == 0
     assert "Not a pull request event" in captured.out
+    assert "changed-lines-passed=skipped" in output
+    assert "changed-lines-coverage=" in output
 
 
 def test_action_skips_changed_coverage_when_pr_shas_are_missing(

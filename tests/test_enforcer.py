@@ -1,6 +1,7 @@
 import pytest
 
-from src.enforcer import enforce
+from src.changed_coverage import ChangedCoverageReport
+from src.enforcer import enforce, enforce_changed_coverage
 from src.parser import CoverageMetrics
 
 
@@ -209,3 +210,105 @@ def test_enforce_invalid_max_regression():
             80.0,
             max_regression=-5.0,
         )
+
+
+def test_enforce_changed_coverage_pass():
+    report = ChangedCoverageReport(
+        available=True,
+        files=[],
+        message="Changed-code coverage report generated.",
+        total_changed_lines=10,
+        covered_changed_lines=9,
+        coverage_percentage=90.0,
+    )
+
+    result = enforce_changed_coverage(report, 80.0)
+
+    assert result.passed is True
+    assert result.coverage == 90.0
+    assert result.threshold == 80.0
+    assert result.available is True
+    assert result.message == ("Changed-line coverage 90.0% vs threshold 80.0% — PASS")
+
+
+def test_enforce_changed_coverage_fail():
+    report = ChangedCoverageReport(
+        available=True,
+        files=[],
+        message="Changed-code coverage report generated.",
+        total_changed_lines=10,
+        covered_changed_lines=6,
+        coverage_percentage=60.0,
+    )
+
+    result = enforce_changed_coverage(report, 80.0)
+
+    assert result.passed is False
+    assert result.coverage == 60.0
+    assert result.threshold == 80.0
+    assert result.available is True
+    assert result.message == ("Changed-line coverage 60.0% vs threshold 80.0% — FAIL")
+
+
+def test_enforce_changed_coverage_at_threshold():
+    report = ChangedCoverageReport(
+        available=True,
+        files=[],
+        message="Changed-code coverage report generated.",
+        total_changed_lines=10,
+        covered_changed_lines=8,
+        coverage_percentage=80.0,
+    )
+
+    result = enforce_changed_coverage(report, 80.0)
+
+    assert result.passed is True
+    assert result.coverage == 80.0
+
+
+def test_enforce_changed_coverage_unavailable():
+    report = ChangedCoverageReport(
+        available=False,
+        files=[],
+        message="Coverage data is missing.",
+    )
+
+    result = enforce_changed_coverage(report, 80.0)
+
+    assert result.passed is True
+    assert result.coverage is None
+    assert result.available is False
+    assert "skipped" in result.message
+
+
+def test_enforce_changed_coverage_no_changed_lines():
+    report = ChangedCoverageReport(
+        available=True,
+        files=[],
+        message="Changed-code coverage report generated.",
+    )
+
+    result = enforce_changed_coverage(report, 80.0)
+
+    assert result.passed is True
+    assert result.coverage is None
+    assert result.available is True
+    assert "no changed lines" in result.message
+
+
+@pytest.mark.parametrize("threshold", [-1.0, 101.0])
+def test_enforce_changed_coverage_invalid_threshold(threshold):
+    report = ChangedCoverageReport(
+        available=True,
+        files=[],
+        message="Changed-code coverage report generated.",
+        total_changed_lines=10,
+        covered_changed_lines=9,
+        coverage_percentage=90.0,
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="Changed-lines threshold must be between 0 and 100",
+    ):
+        enforce_changed_coverage(report, threshold)

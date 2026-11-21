@@ -3,9 +3,12 @@ import subprocess
 import sys
 from pathlib import Path
 
-from src.changed_coverage import ChangedCoverageReport, generate_changed_coverage_report
+from src.changed_coverage import (
+    ChangedCoverageReport,
+    generate_changed_coverage_report,
+)
 from src.changed_lines import parse_changed_lines
-from src.enforcer import enforce
+from src.enforcer import enforce, enforce_changed_coverage
 from src.logger_config import configure_logger
 from src.parser import parse_cobertura, parse_lcov, parse_line_coverage
 from src.pr_comment import publish_pr_comment
@@ -99,6 +102,7 @@ def run_action():
 
     threshold = float(os.environ["COVERAGE_THRESHOLD"])
     warning_margin = float(os.environ["WARNING_MARGIN"])
+    changed_lines_threshold = float(os.environ.get("CHANGED_LINES_THRESHOLD", "0"))
 
     baseline_text = os.environ.get("BASELINE_COVERAGE", "")
     baseline_coverage = float(baseline_text) if baseline_text else None
@@ -108,6 +112,10 @@ def run_action():
     logger.debug("[Coverage Gate] Coverage report: %s", coverage_file)
     logger.debug("[Coverage Gate] Required threshold: %.2f%%", threshold)
     logger.debug("[Coverage Gate] Warning margin: %.2f%%", warning_margin)
+    logger.debug(
+        "[Coverage Gate] Changed-lines threshold: %.2f%%",
+        changed_lines_threshold,
+    )
 
     if baseline_coverage is not None:
         logger.info(
@@ -132,7 +140,9 @@ def run_action():
     changed_coverage = ChangedCoverageReport(
         available=False,
         files=[],
-        message="Changed-code coverage not available: pull request diff is unavailable.",
+        message=(
+            "Changed-code coverage not available: " "pull request diff is unavailable."
+        ),
     )
 
     if os.environ.get("PR_EVENT_NAME") == "pull_request":
@@ -199,10 +209,23 @@ def run_action():
             "skipping changed-code coverage."
         )
 
+    changed_result = enforce_changed_coverage(
+        changed_coverage,
+        changed_lines_threshold,
+    )
+
+    logger.info(
+        "[Coverage Gate] %s",
+        changed_result.message,
+    )
+
+    final_passed = result.passed and changed_result.passed
+
     summary = generate_summary(
         result,
         metrics.file_coverage,
         changed_coverage,
+        changed_result,
     )
 
     summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
@@ -226,7 +249,20 @@ def run_action():
         with open(output_path, "a", encoding="utf-8") as output:
             output.write(f"coverage={result.coverage}\n")
             output.write(f"threshold={result.threshold}\n")
-            output.write(f"passed={str(result.passed).lower()}\n")
+            output.write(f"passed={str(final_passed).lower()}\n")
+
+            changed_coverage_value = (
+                changed_result.coverage if changed_result.coverage is not None else ""
+            )
+
+            changed_lines_status = (
+                str(changed_result.passed).lower()
+                if changed_result.coverage is not None
+                else "skipped"
+            )
+
+            output.write(f"changed-lines-coverage={changed_coverage_value}\n")
+            output.write(f"changed-lines-passed={changed_lines_status}\n")
 
         logger.debug("[Coverage Gate] GitHub Actions outputs published.")
     else:
@@ -241,8 +277,24 @@ def run_action():
     logger.info("Threshold: %.1f%%", result.threshold)
     logger.info("Details:   %s", result.message)
     logger.info(
+        "Changed-line coverage: %s",
+        (
+            f"{changed_result.coverage:.1f}%"
+            if changed_result.coverage is not None
+            else "not available"
+        ),
+    )
+    logger.info(
+        "Changed-line threshold: %.1f%%",
+        changed_result.threshold,
+    )
+    logger.info(
+        "Changed-line enforcement: %s",
+        "PASSED" if changed_result.passed else "FAILED",
+    )
+    logger.info(
         "[Coverage Gate] RESULT: %s",
-        "PASSED" if result.passed else "FAILED",
+        "PASSED" if final_passed else "FAILED",
     )
 
     if result.warning:
@@ -256,10 +308,7 @@ def run_action():
 
     logger.info("===========================================")
 
-    if not result.passed:
-        return 1
-
-    return 0
+    return 0 if final_passed else 1
 
 
 def main():
