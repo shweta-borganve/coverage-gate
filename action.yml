@@ -41,6 +41,16 @@ inputs:
     required: false
     default: 'true'
 
+  enable-coverage-trend:
+    description: 'Enable coverage history tracking using GitHub Actions artifacts'
+    required: false
+    default: 'false'
+
+  history-token:
+    description: 'GitHub token with Actions read permission for retrieving coverage history'
+    required: false
+    default: ''
+
 outputs:
   coverage:
     description: 'Current coverage percentage'
@@ -101,8 +111,26 @@ runs:
         WARNING_MARGIN: ${{ inputs.warning-margin }}
         BASELINE_COVERAGE: ${{ inputs.baseline-coverage }}
         MAX_REGRESSION: ${{ inputs.max-regression }}
+        ENABLE_COVERAGE_TREND: ${{ inputs.enable-coverage-trend }}
+        HISTORY_TOKEN: ${{ inputs.history-token || github.token }}
+        COVERAGE_HISTORY_BRANCH: ${{ github.head_ref || github.ref_name }}
+        COVERAGE_HISTORY_COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        GITHUB_RUN_ID: ${{ github.run_id }}
+        GITHUB_RUN_NUMBER: ${{ github.run_number }}
+        GITHUB_WORKFLOW_REF: ${{ github.workflow_ref }}
+        HISTORY_OUTPUT_PATH: ${{ runner.temp }}/coverage-gate-history.json
       run: |
         set -e
         cd "$ACTION_PATH"
         echo "[Coverage Gate] Starting coverage check..."
         python -m src.main --github-action
+
+    - name: Upload coverage history
+      if: ${{ always() && inputs.enable-coverage-trend == 'true' }}
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: coverage-gate-history
+        path: ${{ runner.temp }}/coverage-gate-history.json
+        if-no-files-found: ignore
+        retention-days: 90
+      continue-on-error: true

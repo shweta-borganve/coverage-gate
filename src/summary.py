@@ -14,11 +14,61 @@ def _format_filename(filename):
     return f"`{escaped_filename}`"
 
 
+def _append_coverage_trend(summary_lines, trend_data):
+    """Add optional historical coverage trend details to the summary."""
+    if trend_data is None:
+        return
+
+    summary_lines.extend(
+        [
+            "",
+            "### Coverage Trend",
+            "",
+        ]
+    )
+
+    direction = trend_data.get("direction", "unavailable")
+
+    if direction == "unavailable":
+        summary_lines.append(
+            "**Status:** Unavailable (historical coverage could not be retrieved)"
+        )
+        summary_lines.append(
+            f"**Details:** {trend_data.get('message', 'No details available.')}"
+        )
+        return
+
+    if direction == "no-history":
+        summary_lines.append(
+            "**Status:** No previous history available (first recorded run)"
+        )
+        summary_lines.append(f"**Current coverage:** {trend_data['history'][-1]:.1f}%")
+        return
+
+    status_labels = {
+        "improved": "Improved",
+        "declined": "Declined",
+        "unchanged": "Unchanged",
+    }
+    status = status_labels.get(direction, "Unavailable")
+
+    summary_lines.extend(
+        [
+            f"- **Status:** {status}",
+            f"- **Previous coverage:** {trend_data['previous_coverage']:.1f}%",
+            f"- **Current coverage:** {trend_data['history'][-1]:.1f}%",
+            f"- **Change:** {trend_data['change']:+.2f} percentage points",
+            f"- **Historical records:** {trend_data['records_count']}",
+        ]
+    )
+
+
 def generate_summary(
     result,
     file_coverage=None,
     changed_coverage=None,
     changed_enforcement=None,
+    trend_data=None,
 ):
     logger.info("Generating Coverage Gate summary.")
 
@@ -92,6 +142,8 @@ def generate_summary(
                     f"- **Status:** {enforcement_status}",
                 ]
             )
+
+    _append_coverage_trend(summary_lines, trend_data)
 
     if file_coverage:
         logger.info(

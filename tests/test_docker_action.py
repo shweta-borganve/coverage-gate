@@ -8,7 +8,12 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 SOURCE_DIR = ROOT_DIR / "src"
 DOCKER_SOURCE_DIR = ROOT_DIR / "docker" / "src"
 
-COMPOSITE_ONLY_MODULES = {"main.py", "pr_comment.py"}
+COMPOSITE_ONLY_MODULES = {
+    "main.py",
+    "pr_comment.py",
+    "coverage_trend.py",
+    "summary.py",
+}
 
 
 def test_docker_source_modules_match_original_modules():
@@ -17,7 +22,11 @@ def test_docker_source_modules_match_original_modules():
         for path in SOURCE_DIR.glob("*.py")
         if path.name not in COMPOSITE_ONLY_MODULES
     }
-    docker_modules = {path.name for path in DOCKER_SOURCE_DIR.glob("*.py")}
+    docker_modules = {
+        path.name
+        for path in DOCKER_SOURCE_DIR.glob("*.py")
+        if path.name not in COMPOSITE_ONLY_MODULES
+    }
 
     assert docker_modules == source_modules
 

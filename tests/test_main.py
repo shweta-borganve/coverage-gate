@@ -1,3 +1,4 @@
+import json
 import subprocess
 import sys
 from types import SimpleNamespace
@@ -22,6 +23,7 @@ def configure_action_environment(monkeypatch, tmp_path, threshold="80"):
     monkeypatch.setenv("PR_EVENT_NAME", "push")
     monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary_path))
     monkeypatch.setenv("GITHUB_OUTPUT", str(output_path))
+    monkeypatch.setenv("ENABLE_COVERAGE_TREND", "false")
     monkeypatch.setattr(sys, "argv", ["main.py", "--github-action"])
 
     metrics = SimpleNamespace(
@@ -54,6 +56,55 @@ def configure_action_environment(monkeypatch, tmp_path, threshold="80"):
     )
 
     return workspace, summary_path, output_path, metrics
+
+
+def configure_trend_environment(monkeypatch, tmp_path):
+    """Configure the GitHub metadata required by coverage trend tracking."""
+    history_path = tmp_path / "coverage-gate-history.json"
+
+    monkeypatch.setenv("ENABLE_COVERAGE_TREND", "true")
+    monkeypatch.setenv("HISTORY_TOKEN", "test-history-token")
+    monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repo")
+    monkeypatch.setenv("COVERAGE_HISTORY_BRANCH", "feature/test-branch")
+    monkeypatch.setenv("COVERAGE_HISTORY_COMMIT_SHA", "current-commit-sha")
+    monkeypatch.setenv("GITHUB_RUN_ID", "12345")
+    monkeypatch.setenv("GITHUB_RUN_NUMBER", "42")
+    monkeypatch.setenv(
+        "GITHUB_WORKFLOW_REF",
+        "owner/repo/.github/workflows/ci.yml@refs/heads/feature/test-branch",
+    )
+    monkeypatch.setenv("GITHUB_API_URL", "https://api.github.com")
+    monkeypatch.setenv("HISTORY_OUTPUT_PATH", str(history_path))
+
+    return history_path
+
+
+def install_trend_summary_mock(monkeypatch):
+    """Install a summary mock that accepts optional trend data."""
+    summaries = []
+
+    def fake_generate_summary(
+        result,
+        file_coverage,
+        changed_coverage,
+        changed_enforcement,
+        trend_data=None,
+    ):
+        summaries.append(trend_data)
+        return (
+            "Action summary\n"
+            f"Trend data: {trend_data}\n"
+            f"{changed_coverage.message}\n"
+            f"{changed_enforcement.message}\n"
+        )
+
+    monkeypatch.setattr(
+        main_module,
+        "generate_summary",
+        fake_generate_summary,
+    )
+
+    return summaries
 
 
 def test_main_uses_default_warning_margin(monkeypatch, capsys):
@@ -556,3 +607,164 @@ def test_action_continues_when_pr_comment_api_fails(monkeypatch, tmp_path, capsy
     assert "Could not publish PR comment" in captured.out
     assert "GitHub API unavailable" in captured.out
     assert "[Coverage Gate] RESULT: PASSED" in captured.out
+
+
+def test_action_disables_coverage_trend_by_default(monkeypatch, tmp_path):
+    configure_action_environment(monkeypatch, tmp_path)
+
+    def fail_if_called(**_kwargs):
+        raise AssertionError("Coverage trend should be disabled.")
+
+    monkeypatch.setattr(
+        main_module,
+        "get_coverage_trend",
+        fail_if_called,
+    )
+
+    result = main()
+
+    assert result == 0
+
+
+def test_action_retrieves_trend_and_writes_history_record(monkeypatch, tmp_path):
+    configure_action_environment(monkeypatch, tmp_path)
+    history_path = configure_trend_environment(monkeypatch, tmp_path)
+    summaries = install_trend_summary_mock(monkeypatch)
+
+    expected_trend = {
+        "available": True,
+        "direction": "improved",
+        "previous_coverage": 80.0,
+        "change": 5.0,
+        "history": [80.0, 85.0],
+        "records_count": 1,
+        "message": "Coverage improved by 5.00 percentage points.",
+    }
+
+    trend_calls = []
+
+    def fake_get_coverage_trend(**kwargs):
+        trend_calls.append(kwargs)
+        return expected_trend
+
+    monkeypatch.setattr(
+        main_module,
+        "get_coverage_trend",
+        fake_get_coverage_trend,
+    )
+
+    result = main()
+
+    assert result == 0
+    assert len(trend_calls) == 1
+    assert trend_calls[0]["token"] == "test-history-token"
+    assert trend_calls[0]["repository"] == "owner/repo"
+    assert trend_calls[0]["branch"] == "feature/test-branch"
+    assert trend_calls[0]["current_coverage"] == 85.0
+    assert summaries == [expected_trend]
+
+    record = json.loads(history_path.read_text(encoding="utf-8"))
+
+    assert record["coverage"] == 85.0
+    assert record["branch"] == "feature/test-branch"
+    assert record["commit_sha"] == "current-commit-sha"
+    assert record["run_id"] == "12345"
+    assert record["run_number"] == 42
+    assert record["workflow_path"] == "owner/repo/.github/workflows/ci.yml"
+
+
+def test_action_writes_history_when_no_previous_trend_exists(monkeypatch, tmp_path):
+    configure_action_environment(monkeypatch, tmp_path)
+    history_path = configure_trend_environment(monkeypatch, tmp_path)
+    summaries = install_trend_summary_mock(monkeypatch)
+
+    no_history = {
+        "available": False,
+        "direction": "no-history",
+        "previous_coverage": None,
+        "change": None,
+        "history": [85.0],
+        "records_count": 0,
+        "message": "No previous coverage history is available.",
+    }
+
+    monkeypatch.setattr(
+        main_module,
+        "get_coverage_trend",
+        lambda **_kwargs: no_history,
+    )
+
+    result = main()
+
+    assert result == 0
+    assert summaries == [no_history]
+    assert history_path.exists()
+
+    record = json.loads(history_path.read_text(encoding="utf-8"))
+    assert record["coverage"] == 85.0
+    assert record["run_id"] == "12345"
+
+
+def test_action_writes_history_even_when_coverage_fails(monkeypatch, tmp_path, capsys):
+    configure_action_environment(monkeypatch, tmp_path, threshold="90")
+    history_path = configure_trend_environment(monkeypatch, tmp_path)
+    install_trend_summary_mock(monkeypatch)
+
+    unavailable_trend = {
+        "available": False,
+        "direction": "unavailable",
+        "previous_coverage": None,
+        "change": None,
+        "history": [85.0],
+        "records_count": 0,
+        "message": "Coverage history is currently unavailable.",
+    }
+
+    monkeypatch.setattr(
+        main_module,
+        "get_coverage_trend",
+        lambda **_kwargs: unavailable_trend,
+    )
+
+    result = main()
+
+    captured = capsys.readouterr()
+
+    assert result == 1
+    assert "[Coverage Gate] RESULT: FAILED" in captured.out
+    assert history_path.exists()
+
+    record = json.loads(history_path.read_text(encoding="utf-8"))
+    assert record["coverage"] == 85.0
+    assert record["run_id"] == "12345"
+
+
+def test_action_skips_history_record_when_run_metadata_is_missing(
+    monkeypatch, tmp_path, capsys
+):
+    configure_action_environment(monkeypatch, tmp_path)
+    history_path = configure_trend_environment(monkeypatch, tmp_path)
+    install_trend_summary_mock(monkeypatch)
+    monkeypatch.delenv("GITHUB_RUN_NUMBER")
+
+    monkeypatch.setattr(
+        main_module,
+        "get_coverage_trend",
+        lambda **_kwargs: {
+            "available": False,
+            "direction": "unavailable",
+            "previous_coverage": None,
+            "change": None,
+            "history": [85.0],
+            "records_count": 0,
+            "message": "Coverage history is currently unavailable.",
+        },
+    )
+
+    result = main()
+
+    captured = capsys.readouterr()
+
+    assert result == 0
+    assert "required GitHub run metadata is unavailable" in captured.out
+    assert not history_path.exists()
