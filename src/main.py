@@ -209,7 +209,6 @@ def run_action():
             "skipping changed-code coverage."
         )
 
- feature/changed-lines-enforcement
     changed_result = enforce_changed_coverage(
         changed_coverage,
         changed_lines_threshold,
@@ -222,16 +221,11 @@ def run_action():
 
     final_passed = result.passed and changed_result.passed
 
-
- main
     summary = generate_summary(
         result,
         metrics.file_coverage,
         changed_coverage,
- feature/changed-lines-enforcement
         changed_result,
-
- main
     )
 
     summary_path = os.environ.get("GITHUB_STEP_SUMMARY")

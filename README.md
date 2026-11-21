@@ -1,26 +1,25 @@
 # Coverage Gate
 
-A reusable GitHub Action that checks Python test coverage and helps prevent coverage regressions.
+A reusable GitHub Action to enforce Python test coverage and prevent coverage regressions.
 
 ## Features
 
-- Coverage threshold enforcement
-- Warning and regression checks
-- Per-file and changed-line coverage
-- GitHub Actions summary and outputs
-- Automatic pull request coverage comments
+- Coverage threshold and regression checks
+- Changed-line coverage enforcement
 - Cobertura XML and LCOV support
+- GitHub Actions summary and outputs
+- Automatic pull request comments
 
 ## Quick Start
 
 Generate a coverage report:
 
 ```bash
-python -m pip install pytest pytest-cov
-python -m pytest --cov=src --cov-report=xml:coverage.xml
+pip install pytest pytest-cov
+pytest --cov=src --cov-report=xml:coverage.xml
 ```
 
-Add Coverage Gate to your workflow:
+Add to your GitHub Actions workflow:
 
 ```yaml
 - name: Coverage Gate
@@ -29,11 +28,10 @@ Add Coverage Gate to your workflow:
     coverage-file: coverage.xml
     threshold: '80'
 ```
- feature/changed-lines-enforcement
 
 ## Pull Request Comments
 
-Enable automatic PR comments by adding:
+Add these workflow permissions:
 
 ```yaml
 permissions:
@@ -41,25 +39,9 @@ permissions:
   pull-requests: write
 ```
 
-Then configure the action:
+Configure the action:
 
 ```yaml
-
-
-## Pull Request Comments
-
-Enable automatic PR comments by adding:
-
-```yaml
-permissions:
-  contents: read
-  pull-requests: write
-```
-
-Then configure the action:
-
-```yaml
- main
 - name: Coverage Gate
   uses: shweta-borganve/coverage-gate@v1.5.1
   with:
@@ -69,8 +51,7 @@ Then configure the action:
     enable-pr-comment: 'true'
 ```
 
- feature/changed-lines-enforcement
-Comments are updated instead of duplicated. If publishing fails (for example, on fork PRs with read-only tokens), a warning is logged and the coverage result is unaffected.
+Comments are updated on subsequent runs instead of duplicated.
 
 ## Configuration
 
@@ -78,52 +59,19 @@ Comments are updated instead of duplicated. If publishing fails (for example, on
 |---|---|---|
 | `coverage-file` | Coverage report path | Required |
 | `threshold` | Minimum coverage (%) | `80` |
-| `changed-lines-threshold` | Minimum changed-line coverage (%) | `0` |
+| `changed-lines-threshold` | Changed-line coverage (%) | `0` |
 | `warning-margin` | Warning range (%) | `5` |
 | `baseline-coverage` | Baseline coverage (%) | Empty |
 | `max-regression` | Maximum coverage drop (%) | `5` |
-| `github-token` | Token for PR comments | Empty |
-| `enable-pr-comment` | Enable PR comments | `true` |
-
-Coverage Gate searches for its existing comment and updates it on subsequent runs.
-
-To prevent multiple workflow runs from publishing comments for the same PR simultaneously, add workflow-level concurrency:
-
-```yaml
-concurrency:
-  group: coverage-gate-pr-${{ github.event.pull_request.number || github.ref }}
-  queue: max
-  cancel-in-progress: false
-```
-
-Use the same concurrency group in every workflow in your repository that publishes Coverage Gate comments. This ensures those workflows run one at a time for the same PR.
-
-This concurrency setting must be configured in the workflow that uses the action. It cannot be configured from inside the composite action itself.
-
-If publishing fails (for example, on fork PRs with read-only tokens), a warning is logged and the coverage result is unaffected.
-main
-
-## Docker Action
-
- feature/changed-lines-enforcement
-
-| Input | Description | Default |
-|---|---|---|
-| `coverage-file` | Coverage report path | Required |
-| `threshold` | Minimum coverage (%) | `80` |
-| `warning-margin` | Warning range (%) | `5` |
-| `baseline-coverage` | Baseline coverage (%) | Empty |
-| `max-regression` | Maximum coverage drop (%) | `5` |
-| `github-token` | Token for PR comments | Empty |
+| `github-token` | PR comment token | Empty |
 | `enable-pr-comment` | Enable PR comments | `true` |
 
 ## Docker Action
 
- main
-See [docker/README.md](docker/README.md) for Docker usage.
+See [Docker documentation](docker/README.md).
 
 ## Repository
 
-[GitHub: shweta-borganve/coverage-gate](https://github.com/shweta-borganve/coverage-gate)
+[GitHub Repository](https://github.com/shweta-borganve/coverage-gate)
 
 **Author:** Shweta Boraganve
