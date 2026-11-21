@@ -9,6 +9,7 @@ A reusable GitHub Action to enforce Python test coverage and prevent coverage re
 - Cobertura XML and LCOV support
 - GitHub Actions summary and outputs
 - Automatic pull request comments
+- Optional historical coverage tracking
 
 ## Quick Start
 
@@ -31,7 +32,7 @@ Add to your GitHub Actions workflow:
 
 ## Pull Request Comments
 
-Add these workflow permissions:
+Add these permissions:
 
 ```yaml
 permissions:
@@ -39,19 +40,41 @@ permissions:
   pull-requests: write
 ```
 
-Configure the action:
+Configure the action with:
 
 ```yaml
-- name: Coverage Gate
-  uses: shweta-borganve/coverage-gate@v1.5.1
-  with:
-    coverage-file: coverage.xml
-    threshold: '80'
-    github-token: ${{ secrets.GITHUB_TOKEN }}
-    enable-pr-comment: 'true'
+github-token: ${{ secrets.GITHUB_TOKEN }}
+enable-pr-comment: 'true'
 ```
 
 Comments are updated on subsequent runs instead of duplicated.
+
+## Coverage Trend Tracking
+
+Track historical coverage using GitHub Actions artifacts.
+
+Enable it with:
+
+```yaml
+permissions:
+  contents: read
+  actions: read
+
+steps:
+  - name: Coverage Gate
+    uses: shweta-borganve/coverage-gate@v1.5.1
+    with:
+      coverage-file: coverage.xml
+      threshold: '80'
+      enable-coverage-trend: 'true'
+```
+
+- Disabled by default.
+- Uses `github.token` unless `history-token` is provided.
+- Stores history in artifacts retained for 90 days.
+- Compares coverage across runs of the same branch and workflow.
+- The first run creates history; subsequent runs can display trends.
+- History failures do not affect coverage enforcement.
 
 ## Configuration
 
@@ -60,11 +83,13 @@ Comments are updated on subsequent runs instead of duplicated.
 | `coverage-file` | Coverage report path | Required |
 | `threshold` | Minimum coverage (%) | `80` |
 | `changed-lines-threshold` | Changed-line coverage (%) | `0` |
-| `warning-margin` | Warning range (%) | `5` |
+| `warning-margin` | Coverage warning margin | `5` |
 | `baseline-coverage` | Baseline coverage (%) | Empty |
-| `max-regression` | Maximum coverage drop (%) | `5` |
-| `github-token` | PR comment token | Empty |
+| `max-regression` | Maximum coverage drop | `5` |
+| `github-token` | Pull request comment token | Empty |
 | `enable-pr-comment` | Enable PR comments | `true` |
+| `enable-coverage-trend` | Enable history tracking | `false` |
+| `history-token` | Token for reading history artifacts | `github.token` |
 
 ## Docker Action
 
