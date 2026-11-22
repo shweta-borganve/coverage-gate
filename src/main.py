@@ -3,6 +3,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+from src.badge import generate_badge
 from src.changed_coverage import (
     ChangedCoverageReport,
     generate_changed_coverage_report,
@@ -47,6 +48,32 @@ def _resolve_coverage_file(workspace: str, configured_path: str) -> str:
         ) from error
 
     return str(coverage_path)
+
+
+def _coverage_badge_enabled() -> bool:
+    """Return whether optional SVG coverage badge generation is enabled."""
+    value = os.environ.get("ENABLE_COVERAGE_BADGE", "false").strip().lower()
+    return value in {"true", "1", "yes"}
+
+
+def _resolve_badge_output_path(workspace: str, configured_path: str) -> Path:
+    """Resolve a badge output path and ensure it stays inside the workspace."""
+    workspace_path = Path(workspace).resolve()
+    badge_path = (workspace_path / configured_path).resolve()
+
+    try:
+        badge_path.relative_to(workspace_path)
+    except ValueError as error:
+        raise ValueError(
+            "Coverage badge output must be located inside GITHUB_WORKSPACE."
+        ) from error
+
+    if badge_path == workspace_path:
+        raise ValueError(
+            "Coverage badge output must be a file inside GITHUB_WORKSPACE."
+        )
+
+    return badge_path
 
 
 def _coverage_trend_enabled() -> bool:
@@ -218,6 +245,31 @@ def run_action():
         )
 
     metrics = _parse_coverage_report(coverage_file)
+
+    if _coverage_badge_enabled():
+        configured_badge_path = (
+            os.environ.get(
+                "BADGE_OUTPUT_PATH",
+                "coverage-badge.svg",
+            ).strip()
+            or "coverage-badge.svg"
+        )
+
+        try:
+            badge_path = _resolve_badge_output_path(
+                workspace,
+                configured_badge_path,
+            )
+            generate_badge(metrics.total_coverage, badge_path)
+            logger.info(
+                "[Coverage Gate] Coverage badge generated: %s",
+                badge_path,
+            )
+        except (OSError, ValueError, TypeError) as error:
+            logger.warning(
+                "[Coverage Gate] WARNING: Could not generate coverage badge: %s",
+                error,
+            )
 
     result = enforce(
         metrics,

@@ -51,6 +51,16 @@ inputs:
     required: false
     default: ''
 
+  enable-coverage-badge:
+    description: 'Generate an SVG coverage badge'
+    required: false
+    default: 'false'
+
+  badge-output-path:
+    description: 'Output path for the SVG coverage badge, relative to the workspace'
+    required: false
+    default: 'coverage-badge.svg'
+
 outputs:
   coverage:
     description: 'Current coverage percentage'
@@ -119,6 +129,8 @@ runs:
         GITHUB_RUN_NUMBER: ${{ github.run_number }}
         GITHUB_WORKFLOW_REF: ${{ github.workflow_ref }}
         HISTORY_OUTPUT_PATH: ${{ runner.temp }}/coverage-gate-history.json
+        ENABLE_COVERAGE_BADGE: ${{ inputs.enable-coverage-badge }}
+        BADGE_OUTPUT_PATH: ${{ inputs.badge-output-path }}
       run: |
         set -e
         cd "$ACTION_PATH"
