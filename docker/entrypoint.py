@@ -3,6 +3,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+from src.badge import generate_badge
 from src.changed_coverage import (
     ChangedCoverageReport,
     generate_changed_coverage_report,
@@ -47,6 +48,51 @@ def resolve_coverage_path(workspace, coverage_file):
     return coverage_path
 
 
+def resolve_badge_output_path(workspace, output_path):
+    """Resolve the badge output path and prevent workspace escapes."""
+    workspace = workspace.resolve()
+    badge_path = Path(output_path)
+
+    if not badge_path.is_absolute():
+        badge_path = workspace / badge_path
+
+    badge_path = badge_path.resolve()
+
+    try:
+        badge_path.relative_to(workspace)
+    except ValueError:
+        raise ValueError(
+            "badge-output-path must point to a file inside GITHUB_WORKSPACE."
+        ) from None
+
+    if badge_path == workspace:
+        raise ValueError(
+            "badge-output-path must point to a file inside GITHUB_WORKSPACE."
+        )
+
+    return badge_path
+
+
+def generate_coverage_badge(workspace, coverage):
+    """Generate an optional SVG badge without affecting enforcement."""
+    enabled = get_input("enable-coverage-badge", "false").lower()
+
+    if enabled not in {"true", "1", "yes"}:
+        logger.info("Coverage badge generation is disabled.")
+        return
+
+    configured_path = (
+        get_input("badge-output-path", "coverage-badge.svg") or "coverage-badge.svg"
+    )
+
+    try:
+        badge_path = resolve_badge_output_path(workspace, configured_path)
+        generate_badge(coverage, badge_path)
+        logger.info("Coverage badge generated: %s", badge_path)
+    except (OSError, ValueError, TypeError) as error:
+        logger.warning("Could not generate coverage badge: %s", error)
+
+
 def main():
     logger.info("Starting Coverage Gate Docker Action.")
 
@@ -66,6 +112,8 @@ def main():
 
     logger.info("Reading coverage report: %s", coverage_path)
     metrics = parse_cobertura(coverage_path)
+
+    generate_coverage_badge(workspace, metrics.total_coverage)
 
     logger.info("Evaluating coverage rules.")
     result = enforce(

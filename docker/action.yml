@@ -31,6 +31,16 @@ inputs:
     required: false
     default: '5'
 
+  enable-coverage-badge:
+    description: 'Generate an SVG coverage badge'
+    required: false
+    default: 'false'
+
+  badge-output-path:
+    description: 'Output path for the SVG coverage badge, relative to the workspace'
+    required: false
+    default: 'coverage-badge.svg'
+
 outputs:
   coverage:
     description: 'Current coverage percentage'
