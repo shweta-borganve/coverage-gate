@@ -8,6 +8,11 @@ from src.changed_coverage import (
     generate_changed_coverage_report,
 )
 from src.changed_lines import parse_changed_lines
+from src.coverage_trend import (
+    create_history_record,
+    get_coverage_trend,
+    write_history_record,
+)
 from src.enforcer import enforce, enforce_changed_coverage
 from src.logger_config import configure_logger
 from src.parser import parse_cobertura, parse_lcov, parse_line_coverage
@@ -42,6 +47,91 @@ def _resolve_coverage_file(workspace: str, configured_path: str) -> str:
         ) from error
 
     return str(coverage_path)
+
+
+def _coverage_trend_enabled() -> bool:
+    """Return whether optional coverage trend tracking is enabled."""
+    value = os.environ.get("ENABLE_COVERAGE_TREND", "false").strip().lower()
+    return value in {"true", "1", "yes"}
+
+
+def _process_coverage_trend(current_coverage: float):
+    """Retrieve previous coverage and write the current history record.
+
+    Trend tracking is optional. Errors in this feature must never affect
+    the coverage enforcement result.
+    """
+    branch = (
+        os.environ.get("COVERAGE_HISTORY_BRANCH")
+        or os.environ.get("GITHUB_HEAD_REF")
+        or os.environ.get("GITHUB_REF_NAME", "")
+    )
+    commit_sha = (
+        os.environ.get("COVERAGE_HISTORY_COMMIT_SHA")
+        or os.environ.get("GITHUB_HEAD_SHA")
+        or os.environ.get("GITHUB_SHA", "")
+    )
+    repository = os.environ.get("GITHUB_REPOSITORY", "")
+    run_id = os.environ.get("GITHUB_RUN_ID", "")
+    run_number_text = os.environ.get("GITHUB_RUN_NUMBER", "")
+    workflow_ref = os.environ.get("GITHUB_WORKFLOW_REF", "")
+    token = os.environ.get("HISTORY_TOKEN", "")
+    api_url = os.environ.get("GITHUB_API_URL", "https://api.github.com")
+
+    trend_data = get_coverage_trend(
+        token=token,
+        repository=repository,
+        branch=branch,
+        commit_sha=commit_sha,
+        current_run_id=run_id,
+        workflow_ref=workflow_ref,
+        current_coverage=current_coverage,
+        api_url=api_url,
+    )
+
+    output_path = os.environ.get("HISTORY_OUTPUT_PATH", "")
+
+    if not output_path:
+        logger.warning(
+            "[Coverage Gate] Coverage history record not written: "
+            "history output path is unavailable."
+        )
+        return trend_data
+
+    try:
+        if not all(
+            (
+                branch,
+                commit_sha,
+                run_id,
+                run_number_text,
+                workflow_ref,
+            )
+        ):
+            logger.warning(
+                "[Coverage Gate] Coverage history record not written: "
+                "required GitHub run metadata is unavailable."
+            )
+            return trend_data
+
+        record = create_history_record(
+            coverage=current_coverage,
+            branch=branch,
+            commit_sha=commit_sha,
+            run_id=run_id,
+            run_number=int(run_number_text),
+            workflow_ref=workflow_ref,
+        )
+
+        write_history_record(record, output_path)
+
+    except (OSError, ValueError, TypeError, KeyError) as error:
+        logger.warning(
+            "[Coverage Gate] WARNING: Could not write coverage history: %s",
+            error,
+        )
+
+    return trend_data
 
 
 def _publish_pr_comment(summary: str) -> None:
@@ -221,12 +311,27 @@ def run_action():
 
     final_passed = result.passed and changed_result.passed
 
-    summary = generate_summary(
-        result,
-        metrics.file_coverage,
-        changed_coverage,
-        changed_result,
-    )
+    trend_enabled = _coverage_trend_enabled()
+    trend_data = None
+
+    if trend_enabled:
+        trend_data = _process_coverage_trend(result.coverage)
+
+    if trend_enabled:
+        summary = generate_summary(
+            result,
+            metrics.file_coverage,
+            changed_coverage,
+            changed_result,
+            trend_data=trend_data,
+        )
+    else:
+        summary = generate_summary(
+            result,
+            metrics.file_coverage,
+            changed_coverage,
+            changed_result,
+        )
 
     summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
 
