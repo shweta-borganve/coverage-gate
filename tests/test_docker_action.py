@@ -6,51 +6,54 @@ from docker.entrypoint import resolve_coverage_path
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
 SOURCE_DIR = ROOT_DIR / "src"
-DOCKER_SOURCE_DIR = ROOT_DIR / "docker" / "src"
-
-COMPOSITE_ONLY_MODULES = {
-    "main.py",
-    "pr_comment.py",
-    "coverage_trend.py",
-    "summary.py",
-}
+DOCKER_DIR = ROOT_DIR / "docker"
+DOCKER_SOURCE_DIR = DOCKER_DIR / "src"
 
 
-def test_docker_source_modules_match_original_modules():
-    source_modules = {
-        path.name
-        for path in SOURCE_DIR.glob("*.py")
-        if path.name not in COMPOSITE_ONLY_MODULES
-    }
-    docker_modules = {
-        path.name
-        for path in DOCKER_SOURCE_DIR.glob("*.py")
-        if path.name not in COMPOSITE_ONLY_MODULES
-    }
+def test_docker_source_is_not_duplicated():
+    assert SOURCE_DIR.is_dir()
+    assert not DOCKER_SOURCE_DIR.exists()
 
-    assert docker_modules == source_modules
 
-    for module_name in sorted(source_modules):
-        original = (SOURCE_DIR / module_name).read_bytes()
-        docker_copy = (DOCKER_SOURCE_DIR / module_name).read_bytes()
+def test_dockerfile_uses_root_source_directory():
+    dockerfile = DOCKER_DIR / "Dockerfile"
+    dockerfile_text = dockerfile.read_text(encoding="utf-8")
 
-        assert (
-            docker_copy == original
-        ), f"docker/src/{module_name} differs from src/{module_name}"
+    assert "COPY src/ ./src/" in dockerfile_text
+    assert "COPY docker/entrypoint.py ./entrypoint.py" in dockerfile_text
 
 
 def test_docker_action_metadata_is_configured():
-    action_file = ROOT_DIR / "docker" / "action.yml"
+    action_file = DOCKER_DIR / "action.yml"
     action_text = action_file.read_text(encoding="utf-8")
 
-    assert "using: 'docker'" in action_text
-    assert "image: 'Dockerfile'" in action_text
-    assert "coverage-file:" in action_text
-    assert "threshold:" in action_text
-    assert "warning-margin:" in action_text
-    assert "baseline-coverage:" in action_text
-    assert "max-regression:" in action_text
-    assert "coverage:" in action_text
+    assert "using: 'composite'" in action_text
+    assert "id: run-docker" in action_text
+    assert "docker build" in action_text
+    assert '"$GITHUB_WORKSPACE"' in action_text
+
+    assert "LOG_LEVEL: ${{ env.LOG_LEVEL || 'INFO' }}" in action_text
+    assert "--env LOG_LEVEL" in action_text
+
+    for input_name in (
+        "coverage-file:",
+        "threshold:",
+        "changed-lines-threshold:",
+        "warning-margin:",
+        "baseline-coverage:",
+        "max-regression:",
+        "enable-coverage-badge:",
+        "badge-output-path:",
+    ):
+        assert input_name in action_text
+
+    for output_name in (
+        "coverage:",
+        "changed-lines-coverage:",
+        "changed-lines-passed:",
+        "passed:",
+    ):
+        assert output_name in action_text
 
 
 def test_resolve_coverage_path_rejects_parent_directory(tmp_path):

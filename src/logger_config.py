@@ -17,7 +17,7 @@ def configure_logger(name: str = "coverage_gate") -> logging.Logger:
     logger.setLevel(
         getattr(logging, os.getenv("LOG_LEVEL", "INFO").upper(), logging.INFO)
     )
-    logger.propagate = False
+    logger.propagate = True
 
     if not logger.handlers:
         handler = DynamicStdoutHandler()

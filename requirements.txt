@@ -1,2 +1,1 @@
-pydantic>=2.14.3
-pytest>=9.2.0 
+# Coverage Gate currently uses only Python standard-library modules.

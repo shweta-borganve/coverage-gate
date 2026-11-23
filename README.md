@@ -1,116 +1,55 @@
 # Coverage Gate
 
-A reusable GitHub Action to enforce Python test coverage and prevent coverage regressions.
+A reusable GitHub Action to enforce test coverage thresholds and detect coverage regressions.
 
 ## Features
-
 - Coverage threshold and regression checks
-- Changed-line coverage enforcement
+- Changed-line coverage analysis
 - Cobertura XML, LCOV, and coverage.py JSON support
-- GitHub Actions summaries and outputs
-- Automatic pull request comments
-- Optional historical coverage tracking
-- Optional SVG coverage badges
+- GitHub summaries and PR comments
+- Historical coverage tracking and SVG badges
 
-## Quick Start
+## Project Structure
 
-Generate a coverage report using one of these formats:
+```text
+coverage-gate/
+├── src/                    # Core application
+│   ├── main.py             # Workflow coordination
+│   ├── parser.py           # Coverage report parsing
+│   ├── enforcer.py         # Threshold and regression checks
+│   ├── changed_lines.py    # Changed-line analysis
+│   ├── changed_coverage.py # Coverage calculations
+│   ├── coverage_trend.py   # Historical coverage tracking
+│   ├── pr_comment.py      # Pull request comments
+│   ├── summary.py          # GitHub summaries
+│   ├── badge.py            # SVG badges
+│   └── logger_config.py    # Logging
+├── docker/                 # Docker Action and entry point
+├── tests/                  # Automated tests and fixtures
+├── docs/                   # Roadmap and compatibility docs
+├── .github/workflows/      # CI and release workflows
+├── action.yml              # Composite Action
+├── Dockerfile              # Root Docker configuration
+└── requirements*.txt       # Dependencies
+```
 
-**Cobertura XML**
+## Architecture
+
+`src/main.py` coordinates the application, and `src/parser.py` parses coverage reports. Other modules handle enforcement, changed-line analysis, PR comments, trends, summaries, badges, and logging.
+
+The Docker Action reuses the shared `src/` code to avoid duplication.
+
+## Development
+
 ```bash
-pip install pytest pytest-cov
-pytest --cov=src --cov-report=xml:coverage.xml
+pip install -r requirements.txt
+pip install -r requirements-dev.txt
+pytest -q
 ```
 
-**coverage.py JSON**
-```bash
-pip install pytest pytest-cov
-pytest --cov=src --cov-report=json:coverage.json
-```
-
-**LCOV**
-
-Generate an LCOV report using a compatible coverage tool and configure its output path.
-
-Add Coverage Gate to your workflow:
-
-```yaml
-- name: Coverage Gate
-  uses: shweta-borganve/coverage-gate@v1.5.1
-  with:
-    coverage-file: coverage.xml
-    threshold: '80'
-```
-
-Set `coverage-file` to `coverage.json` or `coverage.info` for JSON or LCOV reports, respectively. The action selects the parser based on the file extension.
-
-## Pull Request Comments
-
-Add the required permissions:
-
-```yaml
-permissions:
-  contents: read
-  pull-requests: write
-```
-
-Configure the action:
-
-```yaml
-github-token: ${{ secrets.GITHUB_TOKEN }}
-enable-pr-comment: 'true'
-```
-
-Comments are updated on subsequent runs instead of duplicated.
-
-## Coverage Trend Tracking
-
-Track historical coverage using GitHub Actions artifacts. Enable it with:
-
-```yaml
-permissions:
-  contents: read
-  actions: read
-
-steps:
-  - name: Coverage Gate
-    uses: shweta-borganve/coverage-gate@v1.5.1
-    with:
-      coverage-file: coverage.xml
-      threshold: '80'
-      enable-coverage-trend: 'true'
-```
-
-- Disabled by default.
-- Uses `github.token` unless `history-token` is provided.
-- Stores history in artifacts retained for 90 days.
-- Compares runs of the same branch and workflow.
-- The first run creates history; subsequent runs can display trends.
-- History failures do not affect coverage enforcement.
-
-## Configuration
-
-| Input | Description | Default |
-|---|---|---|
-| `coverage-file` | Cobertura XML, LCOV, or coverage.py JSON report path | Required |
-| `threshold` | Minimum coverage (%) | `80` |
-| `changed-lines-threshold` | Changed-line coverage (%) | `0` |
-| `warning-margin` | Coverage warning margin | `5` |
-| `baseline-coverage` | Baseline coverage (%) | Empty |
-| `max-regression` | Maximum coverage drop | `5` |
-| `github-token` | Pull request comment token | Empty |
-| `enable-pr-comment` | Enable PR comments | `true` |
-| `enable-coverage-trend` | Enable history tracking | `false` |
-| `history-token` | Token for reading history artifacts | `github.token` |
-| `enable-coverage-badge` | Generate an SVG coverage badge | `false` |
-| `badge-output-path` | Output path for the SVG badge | `coverage-badge.svg` |
-
-## Docker Action
-
-See the [Docker documentation](docker/README.md).
-
-## Repository
+## Documentation
+- [Roadmap](docs/ROADMAP.md)
+- [Compatibility](docs/compatibility.md)
+- [Docker Action](docker/README.md)
 
 [GitHub Repository](https://github.com/shweta-borganve/coverage-gate)
-
-**Author:** Shweta Boraganve

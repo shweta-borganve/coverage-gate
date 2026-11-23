@@ -44,16 +44,72 @@ inputs:
 outputs:
   coverage:
     description: 'Current coverage percentage'
+    value: ${{ steps.run-docker.outputs.coverage }}
 
   changed-lines-coverage:
     description: 'Coverage percentage for changed lines'
+    value: ${{ steps.run-docker.outputs.changed-lines-coverage }}
 
   changed-lines-passed:
     description: 'Whether the changed-line coverage check passed'
+    value: ${{ steps.run-docker.outputs.changed-lines-passed }}
 
   passed:
     description: 'Whether the overall coverage check passed'
+    value: ${{ steps.run-docker.outputs.passed }}
 
 runs:
-  using: 'docker'
-  image: 'Dockerfile'
+  using: 'composite'
+  steps:
+    - name: Build and run Coverage Gate Docker image
+      id: run-docker
+      shell: bash
+      env:
+        INPUT_COVERAGE-FILE: ${{ inputs.coverage-file }}
+        INPUT_THRESHOLD: ${{ inputs.threshold }}
+        INPUT_CHANGED-LINES-THRESHOLD: ${{ inputs.changed-lines-threshold }}
+        INPUT_WARNING-MARGIN: ${{ inputs.warning-margin }}
+        INPUT_BASELINE-COVERAGE: ${{ inputs.baseline-coverage }}
+        INPUT_MAX-REGRESSION: ${{ inputs.max-regression }}
+        INPUT_ENABLE-COVERAGE-BADGE: ${{ inputs.enable-coverage-badge }}
+        INPUT_BADGE-OUTPUT-PATH: ${{ inputs.badge-output-path }}
+        LOG_LEVEL: ${{ env.LOG_LEVEL || 'INFO' }}
+      run: |
+        set -euo pipefail
+
+        IMAGE_TAG="coverage-gate-docker-action:${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}-${RANDOM}"
+
+        cleanup() {
+          docker image rm "$IMAGE_TAG" >/dev/null 2>&1 || true
+        }
+        trap cleanup EXIT
+
+        echo "Building Coverage Gate Docker image..."
+
+        docker build \
+          --file "$GITHUB_ACTION_PATH/Dockerfile" \
+          --tag "$IMAGE_TAG" \
+          "$GITHUB_WORKSPACE"
+
+        echo "Running Coverage Gate Docker image..."
+
+        docker run --rm \
+          --volume "$GITHUB_WORKSPACE:/github/workspace" \
+          --volume "$RUNNER_TEMP:$RUNNER_TEMP" \
+          --env GITHUB_WORKSPACE=/github/workspace \
+          --env GITHUB_EVENT_NAME \
+          --env GITHUB_EVENT_PATH \
+          --env GITHUB_BASE_REF \
+          --env GITHUB_HEAD_REF \
+          --env GITHUB_OUTPUT \
+          --env GITHUB_STEP_SUMMARY \
+          --env LOG_LEVEL \
+          --env INPUT_COVERAGE-FILE \
+          --env INPUT_THRESHOLD \
+          --env INPUT_CHANGED-LINES-THRESHOLD \
+          --env INPUT_WARNING-MARGIN \
+          --env INPUT_BASELINE-COVERAGE \
+          --env INPUT_MAX-REGRESSION \
+          --env INPUT_ENABLE-COVERAGE-BADGE \
+          --env INPUT_BADGE-OUTPUT-PATH \
+          "$IMAGE_TAG"
