@@ -1,9 +1,9 @@
 name: 'Coverage Gate (Docker)'
-description: 'Docker-based action to check Cobertura XML or LCOV coverage and fail below threshold'
+description: 'Docker-based action to check Cobertura XML, LCOV, or coverage.py JSON coverage and fail below threshold'
 
 inputs:
   coverage-file:
-    description: 'Path to the Cobertura XML or LCOV coverage report'
+    description: 'Path to the Cobertura XML, LCOV, or coverage.py JSON report'
     required: true
 
   threshold:

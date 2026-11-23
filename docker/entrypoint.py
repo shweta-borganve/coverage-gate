@@ -11,7 +11,12 @@ from src.changed_coverage import (
 from src.changed_lines import parse_changed_lines
 from src.enforcer import enforce, enforce_changed_coverage
 from src.logger_config import configure_logger
-from src.parser import parse_cobertura, parse_line_coverage
+from src.parser import (
+    parse_cobertura,
+    parse_coverage_json,
+    parse_lcov,
+    parse_line_coverage,
+)
 from src.summary import generate_summary
 
 logger = configure_logger(__name__)
@@ -73,6 +78,22 @@ def resolve_badge_output_path(workspace, output_path):
     return badge_path
 
 
+def parse_coverage_report(file_path):
+    """Parse a supported coverage report based on its file extension."""
+    extension = Path(file_path).suffix.lower()
+
+    if extension == ".json":
+        logger.debug("Detected coverage.py JSON report.")
+        return parse_coverage_json(file_path)
+
+    if extension == ".info":
+        logger.debug("Detected LCOV coverage report.")
+        return parse_lcov(file_path)
+
+    logger.debug("Detected Cobertura XML coverage report.")
+    return parse_cobertura(file_path)
+
+
 def generate_coverage_badge(workspace, coverage):
     """Generate an optional SVG badge without affecting enforcement."""
     enabled = get_input("enable-coverage-badge", "false").lower()
@@ -111,7 +132,7 @@ def main():
     max_regression = float(get_input("max-regression", "5"))
 
     logger.info("Reading coverage report: %s", coverage_path)
-    metrics = parse_cobertura(coverage_path)
+    metrics = parse_coverage_report(coverage_path)
 
     generate_coverage_badge(workspace, metrics.total_coverage)
 
