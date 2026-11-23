@@ -1,7 +1,9 @@
+import json
 import math
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 from src.logger_config import configure_logger
 
@@ -222,12 +224,180 @@ def parse_lcov(file_path: str, root_dir: str | Path | None = None) -> CoverageMe
     )
 
 
+def _load_coverage_json(file_path: str) -> dict[str, Any]:
+    """Load and validate the top-level structure of a coverage.py JSON report."""
+    try:
+        content = Path(file_path).read_text(encoding="utf-8")
+    except FileNotFoundError:
+        logger.error("Coverage file not found: %s", file_path)
+        raise FileNotFoundError(f"Coverage file not found: {file_path}")
+
+    if not content.strip():
+        raise ValueError("Empty coverage JSON report.")
+
+    try:
+        report = json.loads(content)
+    except json.JSONDecodeError as error:
+        logger.error("Invalid coverage JSON report: %s", file_path)
+        raise ValueError(f"Invalid coverage JSON report: {file_path}") from error
+
+    if not isinstance(report, dict):
+        raise TypeError("Invalid coverage JSON report: expected a JSON object.")
+
+    totals = report.get("totals")
+    files = report.get("files")
+
+    if not isinstance(totals, dict):
+        raise TypeError("Invalid coverage JSON report: missing totals object.")
+
+    if not isinstance(files, dict) or not files:
+        raise ValueError("Invalid coverage JSON report: missing files object.")
+
+    return report
+
+
+def _validate_json_count(value: Any, field_name: str) -> int:
+    """Validate a non-negative integer count in a coverage JSON report."""
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise ValueError(
+            f"Invalid coverage JSON report: '{field_name}' must be "
+            "a non-negative integer."
+        )
+
+    return value
+
+
+def _parse_json_line_data(
+    report: dict[str, Any],
+) -> dict[str, dict[int, bool]]:
+    """Extract executed and missing lines from coverage.py JSON data."""
+    files = report["files"]
+    file_lines: dict[str, dict[int, bool]] = {}
+
+    for filename, file_data in files.items():
+        if not isinstance(filename, str) or not filename.strip():
+            raise ValueError("Invalid coverage JSON report: invalid filename.")
+
+        if not isinstance(file_data, dict):
+            raise TypeError(
+                f"Invalid coverage JSON report: invalid file data for {filename}."
+            )
+
+        executed_lines = file_data.get("executed_lines")
+        missing_lines = file_data.get("missing_lines")
+
+        if not isinstance(executed_lines, list) or not isinstance(missing_lines, list):
+            raise TypeError(
+                f"Invalid coverage JSON report: missing line data for {filename}."
+            )
+
+        lines: dict[int, bool] = {}
+
+        for line_number in executed_lines:
+            if (
+                isinstance(line_number, bool)
+                or not isinstance(line_number, int)
+                or line_number < 1
+                or line_number in lines
+            ):
+                raise ValueError(f"Invalid executed line data for {filename}.")
+
+            lines[line_number] = True
+
+        for line_number in missing_lines:
+            if (
+                isinstance(line_number, bool)
+                or not isinstance(line_number, int)
+                or line_number < 1
+                or line_number in lines
+            ):
+                raise ValueError(f"Invalid missing line data for {filename}.")
+
+            lines[line_number] = False
+
+        summary = file_data.get("summary")
+
+        if not isinstance(summary, dict):
+            raise TypeError(
+                f"Invalid coverage JSON report: missing summary for {filename}."
+            )
+
+        covered = _validate_json_count(
+            summary.get("covered_lines"),
+            f"{filename}.summary.covered_lines",
+        )
+        statements = _validate_json_count(
+            summary.get("num_statements"),
+            f"{filename}.summary.num_statements",
+        )
+
+        if covered > statements:
+            raise ValueError(f"Invalid line coverage counts for {filename}.")
+
+        if len(lines) != statements or sum(lines.values()) != covered:
+            raise ValueError(f"Inconsistent line coverage data for {filename}.")
+
+        file_lines[filename] = lines
+
+    if not any(file_lines.values()):
+        raise ValueError("Missing line coverage data in JSON report.")
+
+    return file_lines
+
+
+def parse_coverage_json(file_path: str) -> CoverageMetrics:
+    """Parse a coverage.py JSON report into line coverage metrics."""
+    logger.info("Reading coverage.py JSON report: %s", file_path)
+
+    report = _load_coverage_json(file_path)
+    totals = report["totals"]
+
+    covered_lines = _validate_json_count(
+        totals.get("covered_lines"),
+        "totals.covered_lines",
+    )
+    num_statements = _validate_json_count(
+        totals.get("num_statements"),
+        "totals.num_statements",
+    )
+
+    if num_statements == 0 or covered_lines > num_statements:
+        raise ValueError("Invalid total line coverage counts in JSON report.")
+
+    raw_file_lines = _parse_json_line_data(report)
+
+    file_covered_lines = sum(sum(lines.values()) for lines in raw_file_lines.values())
+    file_num_statements = sum(len(lines) for lines in raw_file_lines.values())
+
+    if file_covered_lines != covered_lines or file_num_statements != num_statements:
+        raise ValueError("Inconsistent total coverage counts in JSON report.")
+
+    file_coverage = {}
+
+    for filename, lines in raw_file_lines.items():
+        if lines:
+            file_coverage[filename] = sum(lines.values()) / len(lines) * 100
+
+    total_coverage = covered_lines / num_statements * 100
+
+    logger.info(
+        "Coverage JSON processed: %.1f%% total coverage across %d files.",
+        total_coverage,
+        len(file_coverage),
+    )
+
+    return CoverageMetrics(
+        total_coverage=total_coverage,
+        file_coverage=file_coverage,
+    )
+
+
 def _normalize_coverage_filename(
     filename: str,
     source_paths: list[Path],
     working_directory: Path,
 ) -> str:
-    """Normalize a Cobertura filename to a repository-relative path when possible."""
+    """Normalize a coverage filename to a repository-relative path when possible."""
     file_path = Path(filename)
 
     if file_path.is_absolute():
@@ -244,7 +414,7 @@ def _normalize_coverage_filename(
         except ValueError:
             continue
 
-        if relative_path.is_file():
+        if resolved.is_file():
             return relative_path.as_posix()
 
     # Preserve the original filename if it cannot be resolved inside the
@@ -328,6 +498,31 @@ def _normalize_lcov_line_data(
     return normalized_lines
 
 
+def _normalize_json_line_data(
+    raw_file_lines: dict[str, dict[int, bool]],
+    working_directory: Path,
+) -> dict[str, dict[int, bool]]:
+    """Normalize JSON filenames and reject paths that collide after normalization."""
+    normalized_lines = {}
+
+    for filename, lines in raw_file_lines.items():
+        normalized_filename = _normalize_coverage_filename(
+            filename,
+            [],
+            working_directory,
+        )
+
+        if normalized_filename in normalized_lines:
+            raise ValueError(
+                "Duplicate normalized filename in coverage JSON report: "
+                f"{normalized_filename}"
+            )
+
+        normalized_lines[normalized_filename] = lines
+
+    return normalized_lines
+
+
 def parse_line_coverage(
     file_path: str,
     root_dir: str | Path | None = None,
@@ -341,6 +536,12 @@ def parse_line_coverage(
     if coverage_file.suffix.lower() == ".info":
         raw_file_lines = _parse_lcov_line_data(str(coverage_file))
         return _normalize_lcov_line_data(raw_file_lines, working_directory)
+
+    if coverage_file.suffix.lower() == ".json":
+        report = _load_coverage_json(str(coverage_file))
+        raw_file_lines = _parse_json_line_data(report)
+
+        return _normalize_json_line_data(raw_file_lines, working_directory)
 
     try:
         tree = ET.parse(file_path)

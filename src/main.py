@@ -16,7 +16,12 @@ from src.coverage_trend import (
 )
 from src.enforcer import enforce, enforce_changed_coverage
 from src.logger_config import configure_logger
-from src.parser import parse_cobertura, parse_lcov, parse_line_coverage
+from src.parser import (
+    parse_cobertura,
+    parse_coverage_json,
+    parse_lcov,
+    parse_line_coverage,
+)
 from src.pr_comment import publish_pr_comment
 from src.summary import generate_summary
 
@@ -26,6 +31,10 @@ logger = configure_logger(__name__)
 def _parse_coverage_report(file_path: str):
     """Parse a supported coverage report based on its file extension."""
     extension = Path(file_path).suffix.lower()
+
+    if extension == ".json":
+        logger.debug("[Coverage Gate] Detected coverage.py JSON report.")
+        return parse_coverage_json(file_path)
 
     if extension == ".info":
         logger.debug("[Coverage Gate] Detected LCOV coverage report.")
