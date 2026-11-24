@@ -14,7 +14,11 @@ from src.coverage_trend import (
     get_coverage_trend,
     write_history_record,
 )
-from src.enforcer import enforce, enforce_changed_coverage
+from src.enforcer import (
+    ChangedCoverageEnforcementResult,
+    enforce,
+    enforce_changed_coverage,
+)
 from src.logger_config import configure_logger
 from src.parser import (
     parse_cobertura,
@@ -360,10 +364,22 @@ def run_action():
             "skipping changed-code coverage."
         )
 
-    changed_result = enforce_changed_coverage(
-        changed_coverage,
-        changed_lines_threshold,
-    )
+    if os.environ.get("PR_EVENT_NAME") == "pull_request":
+        changed_result = enforce_changed_coverage(
+            changed_coverage,
+            changed_lines_threshold,
+        )
+    else:
+        changed_result = ChangedCoverageEnforcementResult(
+            passed=True,
+            coverage=None,
+            threshold=changed_lines_threshold,
+            available=False,
+            message=(
+                "Changed-line coverage enforcement skipped: "
+                "not a pull request event."
+            ),
+        )
 
     logger.info(
         "[Coverage Gate] %s",
@@ -423,7 +439,7 @@ def run_action():
 
             changed_lines_status = (
                 str(changed_result.passed).lower()
-                if changed_result.coverage is not None
+                if changed_result.coverage is not None or not changed_result.passed
                 else "skipped"
             )
 

@@ -319,6 +319,24 @@ def test_action_skips_changed_coverage_for_non_pr_event(monkeypatch, tmp_path, c
     assert "changed-lines-coverage=" in output
 
 
+def test_push_event_skips_changed_coverage_with_positive_threshold(
+    monkeypatch, tmp_path, capsys
+):
+    _, _, output_path, _ = configure_action_environment(monkeypatch, tmp_path)
+    monkeypatch.setenv("PR_EVENT_NAME", "push")
+    monkeypatch.setenv("CHANGED_LINES_THRESHOLD", "80")
+
+    result = main()
+
+    captured = capsys.readouterr()
+    output = output_path.read_text(encoding="utf-8")
+
+    assert result == 0
+    assert "not a pull request event" in captured.out
+    assert "changed-lines-passed=skipped" in output
+    assert "RESULT: PASSED" in captured.out
+
+
 def test_action_skips_changed_coverage_when_pr_shas_are_missing(
     monkeypatch, tmp_path, capsys
 ):
@@ -768,3 +786,87 @@ def test_action_skips_history_record_when_run_metadata_is_missing(
     assert result == 0
     assert "required GitHub run metadata is unavailable" in captured.out
     assert not history_path.exists()
+
+
+def test_action_fails_when_pr_shas_are_missing_and_threshold_is_positive(
+    monkeypatch, tmp_path, capsys
+):
+    configure_action_environment(monkeypatch, tmp_path)
+    monkeypatch.setenv("PR_EVENT_NAME", "pull_request")
+    monkeypatch.setenv("CHANGED_LINES_THRESHOLD", "80")
+    monkeypatch.delenv("PR_BASE_SHA", raising=False)
+    monkeypatch.delenv("PR_HEAD_SHA", raising=False)
+
+    result = main()
+
+    captured = capsys.readouterr()
+
+    assert result == 1
+    assert "Base or head commit SHA is unavailable" in captured.out
+    assert "Changed-line coverage enforcement failed" in captured.out
+    assert "[Coverage Gate] RESULT: FAILED" in captured.out
+
+
+def test_action_fails_when_git_diff_fails_and_threshold_is_positive(
+    monkeypatch, tmp_path, capsys
+):
+    _, summary_path, output_path, _ = configure_action_environment(
+        monkeypatch, tmp_path
+    )
+    monkeypatch.setenv("PR_EVENT_NAME", "pull_request")
+    monkeypatch.setenv("PR_BASE_SHA", "base-sha")
+    monkeypatch.setenv("PR_HEAD_SHA", "head-sha")
+    monkeypatch.setenv("CHANGED_LINES_THRESHOLD", "80")
+
+    def fail_diff(*_args, **_kwargs):
+        raise subprocess.CalledProcessError(1, ["git", "diff"])
+
+    monkeypatch.setattr(main_module.subprocess, "run", fail_diff)
+
+    result = main()
+
+    captured = capsys.readouterr()
+    summary = summary_path.read_text(encoding="utf-8")
+    output = output_path.read_text(encoding="utf-8")
+
+    assert result == 1
+    assert "could not be calculated" in captured.out
+    assert "Changed-line coverage enforcement failed" in captured.out
+    assert "changed-lines-passed=false" in output
+    assert "RESULT: FAILED" in captured.out
+    assert "Changed-code coverage not available" in summary
+
+
+def test_action_skips_enforcement_for_valid_empty_pr_diff(
+    monkeypatch, tmp_path, capsys
+):
+    _, summary_path, output_path, _ = configure_action_environment(
+        monkeypatch, tmp_path
+    )
+    monkeypatch.setenv("PR_EVENT_NAME", "pull_request")
+    monkeypatch.setenv("PR_BASE_SHA", "base-sha")
+    monkeypatch.setenv("PR_HEAD_SHA", "head-sha")
+    monkeypatch.setenv("CHANGED_LINES_THRESHOLD", "80")
+
+    monkeypatch.setattr(
+        main_module.subprocess,
+        "run",
+        lambda *_args, **_kwargs: SimpleNamespace(stdout=""),
+    )
+    monkeypatch.setattr(
+        main_module,
+        "parse_line_coverage",
+        lambda *_args, **_kwargs: {},
+    )
+
+    result = main()
+
+    captured = capsys.readouterr()
+    summary = summary_path.read_text(encoding="utf-8")
+    output = output_path.read_text(encoding="utf-8")
+
+    assert result == 0
+    assert "no changed executable lines" in captured.out
+    assert "RESULT: PASSED" in captured.out
+    assert "no changed executable lines" in summary
+    assert "changed-lines-passed=skipped" in output
