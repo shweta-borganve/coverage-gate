@@ -319,6 +319,24 @@ def test_action_skips_changed_coverage_for_non_pr_event(monkeypatch, tmp_path, c
     assert "changed-lines-coverage=" in output
 
 
+def test_push_event_skips_changed_coverage_with_positive_threshold(
+    monkeypatch, tmp_path, capsys
+):
+    _, _, output_path, _ = configure_action_environment(monkeypatch, tmp_path)
+    monkeypatch.setenv("PR_EVENT_NAME", "push")
+    monkeypatch.setenv("CHANGED_LINES_THRESHOLD", "80")
+
+    result = main()
+
+    captured = capsys.readouterr()
+    output = output_path.read_text(encoding="utf-8")
+
+    assert result == 0
+    assert "not a pull request event" in captured.out
+    assert "changed-lines-passed=skipped" in output
+    assert "RESULT: PASSED" in captured.out
+
+
 def test_action_skips_changed_coverage_when_pr_shas_are_missing(
     monkeypatch, tmp_path, capsys
 ):
