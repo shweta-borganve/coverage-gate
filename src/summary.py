@@ -126,7 +126,18 @@ def generate_summary(
             ]
         )
 
-        if not changed_enforcement.available:
+        if not changed_enforcement.passed:
+            summary_lines.append("- **Status:** FAIL")
+            if not changed_enforcement.available:
+                summary_lines.append(
+                    "- **Details:** Changed-line coverage is unavailable."
+                )
+            elif changed_enforcement.coverage is not None:
+                summary_lines.append(
+                    f"- **Coverage:** {changed_enforcement.coverage:.1f}%"
+                )
+            summary_lines.append(f"- **Details:** {changed_enforcement.message}")
+        elif not changed_enforcement.available:
             summary_lines.append(
                 "- **Status:** Skipped (changed-line coverage unavailable)"
             )
@@ -135,11 +146,10 @@ def generate_summary(
             summary_lines.append("- **Coverage:** Not applicable (no changed lines)")
             summary_lines.append("- **Status:** Skipped")
         else:
-            enforcement_status = "PASS" if changed_enforcement.passed else "FAIL"
             summary_lines.extend(
                 [
                     f"- **Coverage:** {changed_enforcement.coverage:.1f}%",
-                    f"- **Status:** {enforcement_status}",
+                    "- **Status:** PASS",
                 ]
             )
 
