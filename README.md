@@ -1,55 +1,160 @@
 # Coverage Gate
 
-A reusable GitHub Action to enforce test coverage thresholds and detect coverage regressions.
+A reusable GitHub Action to enforce code coverage thresholds and detect coverage regressions.
 
 ## Features
-- Coverage threshold and regression checks
-- Changed-line coverage analysis
+
+- Overall and changed-line coverage checks
+- Coverage regression detection
 - Cobertura XML, LCOV, and coverage.py JSON support
-- GitHub summaries and PR comments
-- Historical coverage tracking and SVG badges
+- GitHub Actions summaries and pull request comments
+- Coverage history and SVG badges
+- Composite and Docker Action support
 
-## Project Structure
+## Supported Formats
 
-```text
-coverage-gate/
-├── src/                    # Core application
-│   ├── main.py             # Workflow coordination
-│   ├── parser.py           # Coverage report parsing
-│   ├── enforcer.py         # Threshold and regression checks
-│   ├── changed_lines.py    # Changed-line analysis
-│   ├── changed_coverage.py # Coverage calculations
-│   ├── coverage_trend.py   # Historical coverage tracking
-│   ├── pr_comment.py      # Pull request comments
-│   ├── summary.py          # GitHub summaries
-│   ├── badge.py            # SVG badges
-│   └── logger_config.py    # Logging
-├── docker/                 # Docker Action and entry point
-├── tests/                  # Automated tests and fixtures
-├── docs/                   # Roadmap and compatibility docs
-├── .github/workflows/      # CI and release workflows
-├── action.yml              # Composite Action
-├── Dockerfile              # Root Docker configuration
-└── requirements*.txt       # Dependencies
+| Format | File |
+|---|---|
+| Cobertura XML | `coverage.xml` |
+| LCOV | `coverage.info` |
+| coverage.py JSON | `coverage.json` |
+
+## Quick Start
+
+Generate a coverage report using pytest:
+
+```bash
+pytest --cov=src --cov-report=xml:coverage.xml
 ```
 
-## Architecture
+Add this step to `.github/workflows/ci.yml`:
 
-`src/main.py` coordinates the application, and `src/parser.py` parses coverage reports. Other modules handle enforcement, changed-line analysis, PR comments, trends, summaries, badges, and logging.
+```yaml
+- name: Check coverage
+  uses: shweta-borganve/coverage-gate@main
+  with:
+    coverage-file: coverage.xml
+    threshold: '80'
+    github-token: ${{ secrets.GITHUB_TOKEN }}
+```
 
-The Docker Action reuses the shared `src/` code to avoid duplication.
+Use a published version tag instead of `@main` when available.
+
+## Inputs
+
+| Input | Default | Description |
+|---|---|---|
+| `coverage-file` | Required | Path to the coverage report |
+| `threshold` | `80` | Minimum overall coverage percentage |
+| `changed-lines-threshold` | `0` | Minimum changed-line coverage |
+| `warning-margin` | `5` | Warning margin in percentage points |
+| `baseline-coverage` | Empty | Baseline coverage for regression checks |
+| `max-regression` | `5` | Maximum allowed coverage regression |
+| `github-token` | Empty | Token for pull request comments |
+| `enable-pr-comment` | `true` | Enable pull request comments |
+| `enable-coverage-trend` | `false` | Enable coverage history tracking |
+| `history-token` | Empty | Token for coverage history operations |
+| `enable-coverage-badge` | `false` | Generate an SVG coverage badge |
+| `badge-output-path` | `coverage-badge.svg` | Badge output file path |
+
+## Outputs
+
+| Output | Description |
+|---|---|
+| `coverage` | Measured overall coverage percentage |
+| `threshold` | Configured coverage threshold |
+| `passed` | Whether the coverage check passed |
+| `changed-lines-coverage` | Changed-line coverage percentage |
+| `changed-lines-passed` | Whether the changed-line check passed |
+
+The Docker Action exposes `coverage`, `changed-lines-coverage`, `changed-lines-passed`, and `passed`.
+
+## Configuration Examples
+
+### Changed-line coverage
+
+```yaml
+- name: Check changed-line coverage
+  uses: shweta-borganve/coverage-gate@main
+  with:
+    coverage-file: coverage.xml
+    threshold: '80'
+    changed-lines-threshold: '90'
+```
+
+### Coverage regression detection
+
+```yaml
+- name: Check coverage regression
+  uses: shweta-borganve/coverage-gate@main
+  with:
+    coverage-file: coverage.xml
+    threshold: '80'
+    baseline-coverage: '85'
+    max-regression: '5'
+```
+
+### Coverage badge
+
+```yaml
+- name: Generate coverage badge
+  uses: shweta-borganve/coverage-gate@main
+  with:
+    coverage-file: coverage.xml
+    enable-coverage-badge: 'true'
+    badge-output-path: coverage-badge.svg
+```
+
+## Required Permissions
+
+For pull request comments, configure:
+
+```yaml
+permissions:
+  contents: read
+  pull-requests: write
+```
+
+Coverage history operations may require additional `actions: read` and `actions: write` permissions, depending on the workflow.
+
+## Docker Action
+
+The Docker Action can be used separately:
+
+```yaml
+- name: Check coverage with Docker
+  uses: shweta-borganve/coverage-gate/docker@main
+  with:
+    coverage-file: coverage.xml
+    threshold: '80'
+```
+
+**Requirement:** The GitHub Actions runner must have Docker installed and a working Docker daemon.
+
+See [Docker Action documentation](docker/README.md).
 
 ## Development
 
+Install development dependencies and run tests:
+
 ```bash
-pip install -r requirements.txt
 pip install -r requirements-dev.txt
 pytest -q
 ```
 
+## Project Structure
+
+- `src/` – Core application
+- `docker/` – Docker Action and entrypoint
+- `tests/` – Automated tests
+- `docs/` – Project documentation
+
 ## Documentation
+
 - [Roadmap](docs/ROADMAP.md)
 - [Compatibility](docs/compatibility.md)
 - [Docker Action](docker/README.md)
+
+## Repository
 
 [GitHub Repository](https://github.com/shweta-borganve/coverage-gate)

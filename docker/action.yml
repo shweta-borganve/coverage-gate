@@ -89,7 +89,7 @@ runs:
         docker build \
           --file "$GITHUB_ACTION_PATH/Dockerfile" \
           --tag "$IMAGE_TAG" \
-          "$GITHUB_WORKSPACE"
+          "$GITHUB_ACTION_PATH/.."
 
         echo "Running Coverage Gate Docker image..."
 

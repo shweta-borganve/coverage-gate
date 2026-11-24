@@ -25,3 +25,9 @@ def test_debug_level_shows_debug_messages(monkeypatch, capsys):
 
     assert "detailed progress" in output
     assert "important result" in output
+
+
+def test_logger_does_not_propagate_to_root():
+    logger = configure_logger("test_logger_propagation")
+
+    assert logger.propagate is False
