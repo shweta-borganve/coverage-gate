@@ -273,7 +273,7 @@ def test_enforce_changed_coverage_unavailable():
         message="Coverage data is missing.",
     )
 
-    result = enforce_changed_coverage(report, 80.0)
+    result = enforce_changed_coverage(report, 0.0)
 
     assert result.passed is True
     assert result.coverage is None
@@ -293,7 +293,7 @@ def test_enforce_changed_coverage_no_changed_lines():
     assert result.passed is True
     assert result.coverage is None
     assert result.available is True
-    assert "no changed lines" in result.message
+    assert "no changed executable lines" in result.message
 
 
 @pytest.mark.parametrize("threshold", [-1.0, 101.0])

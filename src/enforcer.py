@@ -171,14 +171,26 @@ def enforce_changed_coverage(
         raise ValueError("Changed-lines threshold must be between 0 and 100")
 
     if not report.available:
+        required = threshold > 0
+        status = "failed" if required else "skipped"
+
         message = (
-            "Changed-line coverage enforcement skipped: "
-            "coverage data is unavailable."
+            "Changed-line coverage enforcement "
+            f"{status}: coverage data is unavailable."
         )
-        logger.warning(message)
+
+        if required:
+            message += (
+                f" A threshold of {threshold:.1f}% was required, "
+                "but the check could not be completed."
+            )
+            logger.error(message)
+        else:
+            message += " No positive changed-line threshold was configured."
+            logger.warning(message)
 
         return ChangedCoverageEnforcementResult(
-            passed=True,
+            passed=not required,
             coverage=None,
             threshold=threshold,
             available=False,
@@ -187,7 +199,8 @@ def enforce_changed_coverage(
 
     if report.coverage_percentage is None:
         message = (
-            "Changed-line coverage enforcement skipped: " "no changed lines were found."
+            "Changed-line coverage enforcement skipped: "
+            "no changed executable lines were found."
         )
         logger.info(message)
 

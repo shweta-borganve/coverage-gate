@@ -423,7 +423,7 @@ def run_action():
 
             changed_lines_status = (
                 str(changed_result.passed).lower()
-                if changed_result.coverage is not None
+                if changed_result.coverage is not None or not changed_result.passed
                 else "skipped"
             )
 
