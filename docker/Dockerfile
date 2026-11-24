@@ -9,7 +9,11 @@ RUN apt-get update \
 
 WORKDIR /app
 
+COPY requirements.txt ./requirements.txt
+
+RUN pip install --no-cache-dir -r requirements.txt
+
 COPY src/ ./src/
-COPY entrypoint.py ./entrypoint.py
+COPY docker/entrypoint.py ./entrypoint.py
 
 ENTRYPOINT ["python", "/app/entrypoint.py"]

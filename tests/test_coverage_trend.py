@@ -200,7 +200,7 @@ def test_calculate_trend_rejects_invalid_current_coverage(coverage):
         coverage_trend.calculate_trend(coverage, [])
 
 
-def test_get_coverage_trend_skips_when_token_is_missing(caplog):
+def test_get_coverage_trend_skips_when_token_is_missing(capsys):
     trend = coverage_trend.get_coverage_trend(
         token="",
         repository="owner/repo",
@@ -211,9 +211,11 @@ def test_get_coverage_trend_skips_when_token_is_missing(caplog):
         current_coverage=85.0,
     )
 
+    output = capsys.readouterr().out
+
     assert trend["available"] is False
     assert trend["direction"] == "unavailable"
-    assert "token is unavailable" in caplog.text
+    assert "token is unavailable" in output
 
 
 def test_get_coverage_trend_skips_when_metadata_is_missing():
@@ -230,7 +232,7 @@ def test_get_coverage_trend_skips_when_metadata_is_missing():
     assert trend["available"] is False
 
 
-def test_get_coverage_trend_handles_api_failure(monkeypatch, caplog):
+def test_get_coverage_trend_handles_api_failure(monkeypatch, capsys):
     def fail_request(*_args, **_kwargs):
         raise OSError("GitHub API unavailable")
 
@@ -246,8 +248,10 @@ def test_get_coverage_trend_handles_api_failure(monkeypatch, caplog):
         current_coverage=85.0,
     )
 
+    output = capsys.readouterr().out
+
     assert trend["available"] is False
-    assert "GitHub API unavailable" in caplog.text
+    assert "GitHub API unavailable" in output
 
 
 def test_get_coverage_trend_uses_matching_branch_and_workflow(monkeypatch):
@@ -357,7 +361,7 @@ def test_get_coverage_trend_skips_expired_artifacts(monkeypatch):
     assert trend["direction"] == "no-history"
 
 
-def test_get_coverage_trend_skips_corrupt_artifact(monkeypatch, caplog):
+def test_get_coverage_trend_skips_corrupt_artifact(monkeypatch, capsys):
     artifact = make_artifact(make_record())
 
     def fake_request(url, _token):
@@ -380,5 +384,7 @@ def test_get_coverage_trend_skips_corrupt_artifact(monkeypatch, caplog):
         current_coverage=85.0,
     )
 
+    output = capsys.readouterr().out
+
     assert trend["available"] is False
-    assert "Skipping an invalid" in caplog.text
+    assert "Skipping an invalid" in output
