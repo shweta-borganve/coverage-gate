@@ -126,20 +126,24 @@ def generate_summary(
             ]
         )
 
-        if not changed_enforcement.available:
-            summary_lines.append(
-                "- **Status:** Skipped (changed-line coverage unavailable)"
-            )
+        if not changed_enforcement.passed:
+            summary_lines.append("- **Status:** FAIL")
+            if changed_enforcement.coverage is not None:
+                summary_lines.append(
+                    f"- **Coverage:** {changed_enforcement.coverage:.1f}%"
+                )
+            summary_lines.append(f"- **Details:** {changed_enforcement.message}")
+        elif not changed_enforcement.available:
+            summary_lines.append("- **Status:** Skipped")
             summary_lines.append(f"- **Details:** {changed_enforcement.message}")
         elif changed_enforcement.coverage is None:
             summary_lines.append("- **Coverage:** Not applicable (no changed lines)")
             summary_lines.append("- **Status:** Skipped")
         else:
-            enforcement_status = "PASS" if changed_enforcement.passed else "FAIL"
             summary_lines.extend(
                 [
                     f"- **Coverage:** {changed_enforcement.coverage:.1f}%",
-                    f"- **Status:** {enforcement_status}",
+                    "- **Status:** PASS",
                 ]
             )
 
@@ -181,7 +185,13 @@ def generate_summary(
     else:
         logger.debug("No per-file coverage details provided.")
 
-    if changed_coverage is not None:
+    show_changed_coverage = changed_coverage is not None and not (
+        changed_enforcement is not None
+        and not changed_enforcement.available
+        and not changed_coverage.available
+    )
+
+    if show_changed_coverage:
         logger.info("Adding changed-code coverage details to summary.")
 
         summary_lines.extend(
