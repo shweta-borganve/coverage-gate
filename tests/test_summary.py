@@ -203,7 +203,11 @@ def test_summary_reports_fail_when_changed_coverage_is_unavailable():
     section = get_changed_enforcement_section(summary)
 
     assert "- **Status:** FAIL" in section
-    assert "Changed-line coverage is unavailable." in section
+    assert (
+        "- **Details:** Changed-line coverage enforcement failed: "
+        "coverage data is unavailable."
+    ) in section
+    assert "Changed-line coverage is unavailable." not in section
 
 
 def test_summary_reports_skipped_when_unavailable_and_not_required():
@@ -232,7 +236,8 @@ def test_summary_reports_skipped_when_unavailable_and_not_required():
     )
     section = get_changed_enforcement_section(summary)
 
-    assert "Skipped (changed-line coverage unavailable)" in section
+    assert "- **Status:** Skipped" in section
+    assert "No positive changed-line threshold was configured." in section
 
 
 def test_summary_reports_skipped_when_no_changed_executable_lines():
@@ -323,3 +328,36 @@ def test_summary_reports_fail_for_changed_line_coverage():
 
     assert "- **Coverage:** 60.0%" in section
     assert "- **Status:** FAIL" in section
+
+
+def test_summary_reports_non_pr_event_as_skipped():
+    result = EnforcementResult(
+        passed=True,
+        warning=False,
+        regression=False,
+        coverage=85.0,
+        threshold=80.0,
+        baseline_coverage=None,
+        regression_amount=0.0,
+        message="Coverage passed",
+    )
+
+    changed_enforcement = ChangedCoverageEnforcementResult(
+        passed=True,
+        coverage=None,
+        threshold=80.0,
+        available=False,
+        message=(
+            "Changed-line coverage enforcement skipped: " "not a pull request event."
+        ),
+    )
+
+    summary = generate_summary(
+        result,
+        changed_enforcement=changed_enforcement,
+    )
+    section = get_changed_enforcement_section(summary)
+
+    assert "- **Status:** Skipped" in section
+    assert "not a pull request event" in section
+    assert "Skipped (changed-line coverage unavailable)" not in section
