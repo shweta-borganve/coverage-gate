@@ -185,7 +185,13 @@ def generate_summary(
     else:
         logger.debug("No per-file coverage details provided.")
 
-    if changed_coverage is not None:
+    show_changed_coverage = changed_coverage is not None and not (
+        changed_enforcement is not None
+        and not changed_enforcement.available
+        and not changed_coverage.available
+    )
+
+    if show_changed_coverage:
         logger.info("Adding changed-code coverage details to summary.")
 
         summary_lines.extend(

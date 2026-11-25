@@ -361,3 +361,91 @@ def test_summary_reports_non_pr_event_as_skipped():
     assert "- **Status:** Skipped" in section
     assert "not a pull request event" in section
     assert "Skipped (changed-line coverage unavailable)" not in section
+
+
+def test_summary_suppresses_unavailable_changed_coverage_for_non_pr_event():
+    result = EnforcementResult(
+        passed=True,
+        warning=False,
+        regression=False,
+        coverage=85.0,
+        threshold=80.0,
+        baseline_coverage=None,
+        regression_amount=0.0,
+        message="Coverage passed",
+    )
+
+    changed_coverage = ChangedCoverageReport(
+        available=False,
+        files=[],
+        message="Changed-code coverage not available: pull request diff is unavailable.",
+    )
+
+    changed_enforcement = ChangedCoverageEnforcementResult(
+        passed=True,
+        coverage=None,
+        threshold=80.0,
+        available=False,
+        message=(
+            "Changed-line coverage enforcement skipped: " "not a pull request event."
+        ),
+    )
+
+    summary = generate_summary(
+        result,
+        changed_coverage=changed_coverage,
+        changed_enforcement=changed_enforcement,
+    )
+
+    assert "### Changed-Line Coverage Enforcement" in summary
+    assert "- **Status:** Skipped" in summary
+    assert "not a pull request event" in summary
+    assert "### Changed-Code Coverage" not in summary
+    assert "pull request diff is unavailable" not in summary
+
+
+def test_summary_suppresses_duplicate_unavailable_coverage_on_pr_failure():
+    result = EnforcementResult(
+        passed=True,
+        warning=False,
+        regression=False,
+        coverage=85.0,
+        threshold=80.0,
+        baseline_coverage=None,
+        regression_amount=0.0,
+        message="Coverage passed",
+    )
+
+    changed_coverage = ChangedCoverageReport(
+        available=False,
+        files=[],
+        message=(
+            "Changed-code coverage not available: "
+            "unable to read the pull request diff or line-level coverage data."
+        ),
+    )
+
+    enforcement_message = (
+        "Changed-line coverage enforcement failed: " "coverage data is unavailable."
+    )
+
+    changed_enforcement = ChangedCoverageEnforcementResult(
+        passed=False,
+        coverage=None,
+        threshold=80.0,
+        available=False,
+        message=enforcement_message,
+    )
+
+    summary = generate_summary(
+        result,
+        changed_coverage=changed_coverage,
+        changed_enforcement=changed_enforcement,
+    )
+
+    assert "### Changed-Line Coverage Enforcement" in summary
+    assert "- **Status:** FAIL" in summary
+    assert enforcement_message in summary
+    assert summary.count(enforcement_message) == 1
+    assert "### Changed-Code Coverage" not in summary
+    assert "unable to read the pull request diff" not in summary
