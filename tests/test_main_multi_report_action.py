@@ -94,3 +94,6 @@ def test_action_merges_multiple_reports_and_writes_combined_coverage(
 
     summary = summary_path.read_text(encoding="utf-8")
     assert "Multiple-report integration summary" in summary
+    assert "### Branch Coverage" in summary
+    assert "Unavailable for merged reports" in summary
+    assert "branch identities cannot be safely deduplicated" in summary

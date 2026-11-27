@@ -481,3 +481,78 @@ end_of_record
             str(coverage_file),
             root_dir=tmp_path,
         )
+
+
+def test_parse_go_line_coverage_resolves_module_relative_path(tmp_path):
+    source_file = tmp_path / "internal" / "api" / "handler.go"
+    source_file.parent.mkdir(parents=True)
+    source_file.write_text("package api\n", encoding="utf-8")
+
+    coverage_file = tmp_path / "coverage.out"
+    coverage_file.write_text(
+        "mode: set\n"
+        "github.com/example/project/internal/api/handler.go:1.1,2.2 2 1\n",
+        encoding="utf-8",
+    )
+
+    result = parse_line_coverage(str(coverage_file), root_dir=tmp_path)
+
+    assert result == {"internal/api/handler.go": {1: True, 2: True}}
+
+
+def test_parse_jacoco_line_coverage_resolves_maven_source_path(tmp_path):
+    source_file = (
+        tmp_path / "module-a" / "src" / "main" / "java" / "com" / "example" / "Foo.java"
+    )
+    source_file.parent.mkdir(parents=True)
+    source_file.write_text("class Foo {}\n", encoding="utf-8")
+
+    coverage_file = tmp_path / "coverage.xml"
+    coverage_file.write_text(
+        """<?xml version="1.0" encoding="UTF-8"?>
+        <report name="Coverage">
+            <package name="com/example">
+                <sourcefile name="Foo.java">
+                    <line nr="1" mi="0" ci="1" mb="0" cb="0"/>
+                </sourcefile>
+            </package>
+            <counter type="LINE" missed="0" covered="1"/>
+        </report>
+        """,
+        encoding="utf-8",
+    )
+
+    result = parse_line_coverage(str(coverage_file), root_dir=tmp_path)
+
+    assert result == {"module-a/src/main/java/com/example/Foo.java": {1: True}}
+
+
+def test_parse_jacoco_line_coverage_does_not_guess_ambiguous_source_path(
+    tmp_path, caplog
+):
+    for module in ("module-a", "module-b"):
+        source_file = (
+            tmp_path / module / "src" / "main" / "java" / "com" / "example" / "Foo.java"
+        )
+        source_file.parent.mkdir(parents=True)
+        source_file.write_text("class Foo {}\n", encoding="utf-8")
+
+    coverage_file = tmp_path / "coverage.xml"
+    coverage_file.write_text(
+        """<?xml version="1.0" encoding="UTF-8"?>
+        <report name="Coverage">
+            <package name="com/example">
+                <sourcefile name="Foo.java">
+                    <line nr="1" mi="0" ci="1" mb="0" cb="0"/>
+                </sourcefile>
+            </package>
+            <counter type="LINE" missed="0" covered="1"/>
+        </report>
+        """,
+        encoding="utf-8",
+    )
+
+    result = parse_line_coverage(str(coverage_file), root_dir=tmp_path)
+
+    assert result == {"com/example/Foo.java": {1: True}}
+    assert "Ambiguous coverage source path" in caplog.text

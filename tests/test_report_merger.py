@@ -120,3 +120,62 @@ def test_calculate_coverage_metrics_rejects_empty_line_data():
         match="Coverage reports contain no valid executable lines",
     ):
         calculate_coverage_metrics({})
+
+
+def test_single_go_report_matches_multi_report_merger_metrics(tmp_path):
+    from src.parser import parse_line_coverage
+
+    report = FIXTURES_DIR / "sample_go.coverprofile"
+
+    single_lines = parse_line_coverage(str(report), root_dir=tmp_path)
+    merged_lines = merge_line_coverage([str(report)], str(tmp_path))
+
+    single_metrics = calculate_coverage_metrics(single_lines)
+    merged_metrics = calculate_coverage_metrics(merged_lines)
+
+    assert merged_lines == single_lines
+    assert merged_metrics.total_coverage == single_metrics.total_coverage
+    assert merged_metrics.file_coverage == single_metrics.file_coverage
+
+
+def test_single_opencover_report_matches_multi_report_merger_metrics(tmp_path):
+    from src.parser import parse_line_coverage
+
+    report = tmp_path / "opencover.xml"
+    report.write_text(
+        """
+        <CoverageSession>
+            <Modules>
+                <Module>
+                    <Files>
+                        <File uid="1" fullPath="src/example.cs"/>
+                    </Files>
+                    <Classes>
+                        <Class>
+                            <Methods>
+                                <Method>
+                                    <SequencePoints>
+                                        <SequencePoint fileid="1" sl="10" vc="1"/>
+                                        <SequencePoint fileid="1" sl="10" vc="0"/>
+                                        <SequencePoint fileid="1" sl="11" vc="0"/>
+                                    </SequencePoints>
+                                </Method>
+                            </Methods>
+                        </Class>
+                    </Classes>
+                </Module>
+            </Modules>
+        </CoverageSession>
+        """,
+        encoding="utf-8",
+    )
+
+    single_lines = parse_line_coverage(str(report), root_dir=tmp_path)
+    merged_lines = merge_line_coverage([str(report)], str(tmp_path))
+
+    single_metrics = calculate_coverage_metrics(single_lines)
+    merged_metrics = calculate_coverage_metrics(merged_lines)
+
+    assert merged_lines == single_lines
+    assert merged_metrics.total_coverage == single_metrics.total_coverage
+    assert merged_metrics.file_coverage == single_metrics.file_coverage

@@ -356,6 +356,31 @@ def run_action():
 
     if len(coverage_files) == 1:
         metrics = _parse_coverage_report(coverage_file)
+        extension = Path(coverage_file).suffix.lower()
+        use_unique_line_metrics = extension in {".out", ".coverprofile"}
+
+        if extension not in {".out", ".coverprofile", ".json", ".info"}:
+            try:
+                report_root = ET.parse(coverage_file).getroot()
+                report_name = report_root.tag.rsplit("}", 1)[-1]
+                use_unique_line_metrics = report_name in {
+                    "report",
+                    "CoverageSession",
+                }
+            except ET.ParseError:
+                use_unique_line_metrics = False
+
+        if use_unique_line_metrics:
+            line_coverage = parse_line_coverage(
+                coverage_file,
+                root_dir=workspace,
+            )
+            canonical_metrics = calculate_coverage_metrics(line_coverage)
+            canonical_metrics.covered_branches = getattr(
+                metrics, "covered_branches", None
+            )
+            canonical_metrics.valid_branches = getattr(metrics, "valid_branches", None)
+            metrics = canonical_metrics
     else:
         logger.info(
             "[Coverage Gate] Merging %d coverage reports.",
@@ -572,6 +597,13 @@ def run_action():
             changed_coverage,
             changed_result,
             **branch_coverage_kwargs,
+        )
+
+    if len(coverage_files) > 1:
+        summary += (
+            "\n\n### Branch Coverage\n"
+            "- **Status:** Unavailable for merged reports because branch "
+            "identities cannot be safely deduplicated across reports.\n"
         )
 
     summary_path = os.environ.get("GITHUB_STEP_SUMMARY")

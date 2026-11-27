@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from src.opencover_parser import parse_opencover_branch_counts
+from src.opencover_parser import parse_opencover_branch_counts, parse_opencover_xml
 from src.parser import parse_line_coverage
 
 
@@ -250,3 +250,45 @@ def test_parse_opencover_branch_counts_rejects_invalid_visit_count(
 
     with pytest.raises(ValueError, match="Invalid branch point data"):
         parse_opencover_branch_counts(str(report))
+
+
+def test_parse_opencover_counts_unique_lines_not_sequence_points(tmp_path):
+    report = tmp_path / "coverage.xml"
+
+    _write_opencover_report(
+        report,
+        [("1", "src/example.cs")],
+        [
+            ("1", 10, 1),
+            ("1", 10, 0),
+            ("1", 11, 0),
+        ],
+    )
+
+    total_coverage, file_lines = parse_opencover_xml(str(report))
+
+    assert total_coverage == 50.0
+    assert file_lines == {
+        "src/example.cs": {
+            10: True,
+            11: False,
+        }
+    }
+
+
+def test_parse_opencover_resolves_module_relative_source_path(tmp_path):
+    source_file = tmp_path / "src" / "example.cs"
+    source_file.parent.mkdir(parents=True)
+    source_file.write_text("example source", encoding="utf-8")
+
+    report = tmp_path / "coverage.xml"
+
+    _write_opencover_report(
+        report,
+        [("1", "module/src/example.cs")],
+        [("1", 10, 1)],
+    )
+
+    result = parse_line_coverage(str(report), root_dir=tmp_path)
+
+    assert result == {"src/example.cs": {10: True}}

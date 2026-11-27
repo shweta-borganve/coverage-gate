@@ -457,7 +457,8 @@ def _normalize_coverage_filename(
     working_directory: Path,
 ) -> str:
     """Normalize a coverage filename to a repository-relative path when possible."""
-    file_path = Path(filename)
+    normalized_name = filename.replace("\\", "/")
+    file_path = Path(normalized_name)
 
     if file_path.is_absolute():
         candidates = [file_path]
@@ -476,8 +477,38 @@ def _normalize_coverage_filename(
         if resolved.is_file():
             return relative_path.as_posix()
 
-    # Preserve the original filename if it cannot be resolved inside the
-    # working directory. This avoids guessing paths for external sources.
+    if not file_path.is_absolute():
+        reported_parts = file_path.parts
+        ignored = {".git", ".venv", "venv", "node_modules", "__pycache__"}
+        matches = []
+
+        for candidate in working_directory.rglob(file_path.name):
+            if not candidate.is_file():
+                continue
+
+            relative_parts = candidate.relative_to(working_directory).parts
+
+            if ignored.intersection(relative_parts):
+                continue
+
+            if (
+                len(relative_parts) >= len(reported_parts)
+                and relative_parts[-len(reported_parts) :] == reported_parts
+            ) or (
+                len(reported_parts) >= len(relative_parts)
+                and reported_parts[-len(relative_parts) :] == relative_parts
+            ):
+                matches.append(candidate)
+
+        if len(matches) == 1:
+            return matches[0].relative_to(working_directory).as_posix()
+
+        if len(matches) > 1:
+            logger.warning(
+                "Ambiguous coverage source path '%s'; preserving the reported path.",
+                filename,
+            )
+
     return file_path.as_posix()
 
 

@@ -99,10 +99,13 @@ def parse_opencover_xml(
     if not found_modules:
         raise ValueError("Missing modules in OpenCover report.")
 
-    if total_points == 0:
+    total_lines = sum(len(lines) for lines in file_lines.values())
+    covered_lines = sum(sum(lines.values()) for lines in file_lines.values())
+
+    if total_lines == 0:
         raise ValueError("Missing sequence point coverage data in OpenCover report.")
 
-    total_coverage = covered_points / total_points * 100
+    total_coverage = covered_lines / total_lines * 100
 
     return total_coverage, file_lines
 
