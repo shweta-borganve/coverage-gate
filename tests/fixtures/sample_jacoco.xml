@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<report name="Coverage Gate">
+    <package name="src">
+        <sourcefile name="example.py">
+            <line nr="1" mi="0" ci="2" mb="0" cb="0"/>
+            <line nr="2" mi="1" ci="0" mb="0" cb="0"/>
+            <line nr="3" mi="0" ci="3" mb="0" cb="0"/>
+        </sourcefile>
+    </package>
+    <counter type="INSTRUCTION" missed="1" covered="5"/>
+    <counter type="LINE" missed="1" covered="2"/>
+</report>

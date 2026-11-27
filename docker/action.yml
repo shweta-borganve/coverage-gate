@@ -1,9 +1,9 @@
 name: 'Coverage Gate (Docker)'
-description: 'Docker-based action to check Cobertura XML, LCOV, or coverage.py JSON coverage and fail below threshold'
+description: 'Docker-based action to merge one or more Cobertura XML, JaCoCo XML, LCOV, Go coverprofile, or coverage.py JSON reports and enforce coverage thresholds'
 
 inputs:
   coverage-file:
-    description: 'Path to the Cobertura XML, LCOV, or coverage.py JSON report'
+    description: 'Comma-separated paths to one or more Cobertura XML, JaCoCo XML, LCOV, Go coverprofile, or coverage.py JSON reports'
     required: true
 
   threshold:
@@ -15,6 +15,11 @@ inputs:
     description: 'Minimum allowed coverage percentage for changed lines'
     required: false
     default: '0'
+
+  component-thresholds:
+    description: 'Optional JSON object mapping repository-relative files or directories to minimum coverage percentages, e.g. {"src/api/": 90, "src/database/": 85}'
+    required: false
+    default: ''
 
   warning-margin:
     description: 'Coverage warning margin in percentage points'
@@ -68,6 +73,7 @@ runs:
         INPUT_COVERAGE-FILE: ${{ inputs.coverage-file }}
         INPUT_THRESHOLD: ${{ inputs.threshold }}
         INPUT_CHANGED-LINES-THRESHOLD: ${{ inputs.changed-lines-threshold }}
+        INPUT_COMPONENT-THRESHOLDS: ${{ inputs.component-thresholds }}
         INPUT_WARNING-MARGIN: ${{ inputs.warning-margin }}
         INPUT_BASELINE-COVERAGE: ${{ inputs.baseline-coverage }}
         INPUT_MAX-REGRESSION: ${{ inputs.max-regression }}
@@ -107,6 +113,7 @@ runs:
           --env INPUT_COVERAGE-FILE \
           --env INPUT_THRESHOLD \
           --env INPUT_CHANGED-LINES-THRESHOLD \
+          --env INPUT_COMPONENT-THRESHOLDS \
           --env INPUT_WARNING-MARGIN \
           --env INPUT_BASELINE-COVERAGE \
           --env INPUT_MAX-REGRESSION \

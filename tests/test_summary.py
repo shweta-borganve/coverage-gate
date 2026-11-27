@@ -449,3 +449,48 @@ def test_summary_suppresses_duplicate_unavailable_coverage_on_pr_failure():
     assert summary.count(enforcement_message) == 1
     assert "### Changed-Code Coverage" not in summary
     assert "unable to read the pull request diff" not in summary
+
+
+def test_summary_includes_branch_coverage():
+    result = EnforcementResult(
+        passed=True,
+        warning=False,
+        regression=False,
+        coverage=85.0,
+        threshold=80.0,
+        baseline_coverage=None,
+        regression_amount=0.0,
+        message="Coverage passed",
+    )
+
+    summary = generate_summary(
+        result,
+        covered_branches=8,
+        valid_branches=10,
+    )
+
+    assert "### Branch Coverage" in summary
+    assert "**Branch coverage:** 80.0%" in summary
+    assert "**Covered branches:** 8/10" in summary
+
+
+def test_branch_coverage_does_not_change_enforcement_status():
+    result = EnforcementResult(
+        passed=True,
+        warning=False,
+        regression=False,
+        coverage=85.0,
+        threshold=80.0,
+        baseline_coverage=None,
+        regression_amount=0.0,
+        message="Coverage passed",
+    )
+
+    summary = generate_summary(
+        result,
+        covered_branches=1,
+        valid_branches=10,
+    )
+
+    assert "**Status:** PASS" in summary
+    assert "**Branch coverage:** 10.0%" in summary

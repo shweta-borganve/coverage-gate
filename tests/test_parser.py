@@ -222,6 +222,58 @@ def test_parse_line_coverage_normalizes_source_path(tmp_path):
     assert result == {"src/parser.py": {1: True}}
 
 
+def test_parse_line_coverage_merges_classes_with_normalized_same_path(
+    tmp_path,
+):
+    source_dir = tmp_path / "src"
+    source_dir.mkdir()
+
+    source_file = source_dir / "parser.py"
+    source_file.write_text(
+        "print('hello')\nprint('world')\n",
+        encoding="utf-8",
+    )
+
+    coverage_file = tmp_path / "coverage.xml"
+    coverage_file.write_text(
+        f"""<coverage line-rate="0.5">
+            <sources>
+                <source>{tmp_path}</source>
+            </sources>
+            <packages>
+                <package name="src">
+                    <classes>
+                        <class filename="src/parser.py">
+                            <lines>
+                                <line number="1" hits="1"/>
+                            </lines>
+                        </class>
+                        <class filename="{source_file}">
+                            <lines>
+                                <line number="2" hits="0"/>
+                            </lines>
+                        </class>
+                    </classes>
+                </package>
+            </packages>
+        </coverage>
+        """,
+        encoding="utf-8",
+    )
+
+    result = parse_line_coverage(
+        str(coverage_file),
+        root_dir=tmp_path,
+    )
+
+    assert result == {
+        "src/parser.py": {
+            1: True,
+            2: False,
+        }
+    }
+
+
 def test_parse_lcov_report(tmp_path):
     coverage_file = tmp_path / "coverage.info"
     coverage_file.write_text(
@@ -279,3 +331,228 @@ end_of_record
 def test_lcov_file_not_found():
     with pytest.raises(FileNotFoundError):
         parse_lcov(FIXTURES_DIR / "missing.info")
+
+
+def test_parse_jacoco_line_coverage():
+    coverage_file = FIXTURES_DIR / "sample_jacoco.xml"
+
+    result = parse_line_coverage(str(coverage_file))
+
+    assert result == {
+        "src/example.py": {
+            1: True,
+            2: False,
+            3: True,
+        }
+    }
+
+
+def test_parse_jacoco_line_coverage_normalizes_source_path(tmp_path):
+    source_dir = tmp_path / "src"
+    source_dir.mkdir()
+    (source_dir / "example.py").write_text(
+        "print('hello')\n",
+        encoding="utf-8",
+    )
+
+    coverage_file = tmp_path / "coverage.xml"
+    coverage_file.write_text(
+        """<?xml version="1.0" encoding="UTF-8"?>
+        <report name="Coverage Gate">
+            <package name="src">
+                <sourcefile name="example.py">
+                    <line nr="1" mi="0" ci="2" mb="0" cb="0"/>
+                </sourcefile>
+            </package>
+            <counter type="LINE" missed="0" covered="1"/>
+        </report>
+        """,
+        encoding="utf-8",
+    )
+
+    result = parse_line_coverage(
+        str(coverage_file),
+        root_dir=tmp_path,
+    )
+
+    assert result == {"src/example.py": {1: True}}
+
+
+def test_parse_go_line_coverage():
+    coverage_file = FIXTURES_DIR / "sample_go.coverprofile"
+
+    result = parse_line_coverage(str(coverage_file))
+
+    assert result == {
+        "example.com/project/src/example.go": {
+            1: True,
+            2: True,
+            3: True,
+            4: False,
+            5: False,
+        },
+        "example.com/project/src/other.go": {
+            1: True,
+            2: True,
+        },
+    }
+
+
+def test_parse_go_line_coverage_normalizes_source_path(tmp_path):
+    source_dir = tmp_path / "src"
+    source_dir.mkdir()
+
+    source_file = source_dir / "example.go"
+    source_file.write_text(
+        "package src\n",
+        encoding="utf-8",
+    )
+
+    coverage_file = tmp_path / "coverage.out"
+    coverage_file.write_text(
+        f"mode: set\n{source_file}:1.1,2.2 2 1\n",
+        encoding="utf-8",
+    )
+
+    result = parse_line_coverage(
+        str(coverage_file),
+        root_dir=tmp_path,
+    )
+
+    assert result == {"src/example.go": {1: True, 2: True}}
+
+
+def test_parse_go_line_coverage_rejects_duplicate_normalized_filenames(tmp_path):
+    source_dir = tmp_path / "src"
+    source_dir.mkdir()
+
+    source_file = source_dir / "example.go"
+    source_file.write_text(
+        "package src\n",
+        encoding="utf-8",
+    )
+
+    coverage_file = tmp_path / "coverage.out"
+    coverage_file.write_text(
+        f"""mode: set
+{source_file}:1.1,1.2 1 1
+src/example.go:2.1,2.2 1 0
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="Duplicate normalized filename"):
+        parse_line_coverage(
+            str(coverage_file),
+            root_dir=tmp_path,
+        )
+
+
+def test_parse_lcov_line_coverage_rejects_duplicate_normalized_filenames(
+    tmp_path,
+):
+    source_dir = tmp_path / "src"
+    source_dir.mkdir()
+
+    source_file = source_dir / "example.py"
+    source_file.write_text(
+        "print('hello')\n",
+        encoding="utf-8",
+    )
+
+    coverage_file = tmp_path / "coverage.info"
+    coverage_file.write_text(
+        f"""SF:{source_file}
+DA:1,1
+LF:1
+LH:1
+end_of_record
+SF:src/example.py
+DA:2,0
+LF:1
+LH:0
+end_of_record
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="Duplicate normalized filename"):
+        parse_line_coverage(
+            str(coverage_file),
+            root_dir=tmp_path,
+        )
+
+
+def test_parse_go_line_coverage_resolves_module_relative_path(tmp_path):
+    source_file = tmp_path / "internal" / "api" / "handler.go"
+    source_file.parent.mkdir(parents=True)
+    source_file.write_text("package api\n", encoding="utf-8")
+
+    coverage_file = tmp_path / "coverage.out"
+    coverage_file.write_text(
+        "mode: set\n"
+        "github.com/example/project/internal/api/handler.go:1.1,2.2 2 1\n",
+        encoding="utf-8",
+    )
+
+    result = parse_line_coverage(str(coverage_file), root_dir=tmp_path)
+
+    assert result == {"internal/api/handler.go": {1: True, 2: True}}
+
+
+def test_parse_jacoco_line_coverage_resolves_maven_source_path(tmp_path):
+    source_file = (
+        tmp_path / "module-a" / "src" / "main" / "java" / "com" / "example" / "Foo.java"
+    )
+    source_file.parent.mkdir(parents=True)
+    source_file.write_text("class Foo {}\n", encoding="utf-8")
+
+    coverage_file = tmp_path / "coverage.xml"
+    coverage_file.write_text(
+        """<?xml version="1.0" encoding="UTF-8"?>
+        <report name="Coverage">
+            <package name="com/example">
+                <sourcefile name="Foo.java">
+                    <line nr="1" mi="0" ci="1" mb="0" cb="0"/>
+                </sourcefile>
+            </package>
+            <counter type="LINE" missed="0" covered="1"/>
+        </report>
+        """,
+        encoding="utf-8",
+    )
+
+    result = parse_line_coverage(str(coverage_file), root_dir=tmp_path)
+
+    assert result == {"module-a/src/main/java/com/example/Foo.java": {1: True}}
+
+
+def test_parse_jacoco_line_coverage_does_not_guess_ambiguous_source_path(
+    tmp_path, caplog
+):
+    for module in ("module-a", "module-b"):
+        source_file = (
+            tmp_path / module / "src" / "main" / "java" / "com" / "example" / "Foo.java"
+        )
+        source_file.parent.mkdir(parents=True)
+        source_file.write_text("class Foo {}\n", encoding="utf-8")
+
+    coverage_file = tmp_path / "coverage.xml"
+    coverage_file.write_text(
+        """<?xml version="1.0" encoding="UTF-8"?>
+        <report name="Coverage">
+            <package name="com/example">
+                <sourcefile name="Foo.java">
+                    <line nr="1" mi="0" ci="1" mb="0" cb="0"/>
+                </sourcefile>
+            </package>
+            <counter type="LINE" missed="0" covered="1"/>
+        </report>
+        """,
+        encoding="utf-8",
+    )
+
+    result = parse_line_coverage(str(coverage_file), root_dir=tmp_path)
+
+    assert result == {"com/example/Foo.java": {1: True}}
+    assert "Ambiguous coverage source path" in caplog.text
