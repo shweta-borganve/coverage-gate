@@ -1,6 +1,8 @@
+import json
 import os
 import subprocess
 import sys
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 from src.badge import generate_badge
@@ -9,6 +11,10 @@ from src.changed_coverage import (
     generate_changed_coverage_report,
 )
 from src.changed_lines import parse_changed_lines
+from src.component_coverage import (
+    evaluate_component_coverage,
+    parse_component_thresholds,
+)
 from src.coverage_trend import (
     create_history_record,
     get_coverage_trend,
@@ -19,24 +25,49 @@ from src.enforcer import (
     enforce,
     enforce_changed_coverage,
 )
+from src.go_parser import parse_go_coverprofile
+from src.istanbul_adapter import parse_istanbul
+from src.jacoco_adapter import parse_jacoco
 from src.logger_config import configure_logger
+from src.opencover_adapter import parse_opencover
 from src.parser import (
+    CoverageMetrics,
     parse_cobertura,
     parse_coverage_json,
     parse_lcov,
     parse_line_coverage,
 )
 from src.pr_comment import publish_pr_comment
+from src.report_merger import (
+    calculate_coverage_metrics,
+    merge_line_coverage,
+)
 from src.summary import generate_summary
 
 logger = configure_logger(__name__)
 
 
 def _parse_coverage_report(file_path: str):
-    """Parse a supported coverage report based on its file extension."""
+    """Parse a supported coverage report based on its format."""
     extension = Path(file_path).suffix.lower()
 
     if extension == ".json":
+        try:
+            with open(file_path, encoding="utf-8") as coverage_file:
+                json_report = json.load(coverage_file)
+        except (OSError, json.JSONDecodeError):
+            json_report = None
+
+        is_istanbul = isinstance(json_report, dict) and any(
+            isinstance(file_data, dict)
+            and ("statementMap" in file_data or "s" in file_data)
+            for file_data in json_report.values()
+        )
+
+        if is_istanbul:
+            logger.debug("[Coverage Gate] Detected Istanbul/NYC JSON report.")
+            return parse_istanbul(file_path)
+
         logger.debug("[Coverage Gate] Detected coverage.py JSON report.")
         return parse_coverage_json(file_path)
 
@@ -44,8 +75,35 @@ def _parse_coverage_report(file_path: str):
         logger.debug("[Coverage Gate] Detected LCOV coverage report.")
         return parse_lcov(file_path)
 
-    logger.debug("[Coverage Gate] Detected Cobertura XML coverage report.")
-    return parse_cobertura(file_path)
+    if extension in {".out", ".coverprofile"}:
+        logger.debug("[Coverage Gate] Detected Go coverprofile report.")
+        go_report = parse_go_coverprofile(file_path)
+
+        return CoverageMetrics(
+            total_coverage=go_report.total_coverage,
+            file_coverage=go_report.file_coverage,
+        )
+
+    try:
+        root = ET.parse(file_path).getroot()
+    except ET.ParseError as error:
+        raise ValueError(f"Invalid coverage XML file: {file_path}") from error
+
+    root_name = root.tag.rsplit("}", 1)[-1]
+
+    if root_name == "coverage":
+        logger.debug("[Coverage Gate] Detected Cobertura XML coverage report.")
+        return parse_cobertura(file_path)
+
+    if root_name == "report":
+        logger.debug("[Coverage Gate] Detected JaCoCo XML coverage report.")
+        return parse_jacoco(file_path)
+
+    if root_name == "CoverageSession":
+        logger.debug("[Coverage Gate] Detected OpenCover XML coverage report.")
+        return parse_opencover(file_path)
+
+    raise ValueError(f"Unsupported coverage XML root element: {root_name}")
 
 
 def _resolve_coverage_file(workspace: str, configured_path: str) -> str:
@@ -61,6 +119,29 @@ def _resolve_coverage_file(workspace: str, configured_path: str) -> str:
         ) from error
 
     return str(coverage_path)
+
+
+def _split_coverage_files(configured_paths: str) -> list[str]:
+    """Split comma-separated coverage report paths and validate the list."""
+    paths = [item.strip() for item in configured_paths.split(",")]
+
+    if not paths or any(not item for item in paths):
+        raise ValueError(
+            "COVERAGE_FILE must contain one or more non-empty report paths."
+        )
+
+    return paths
+
+
+def _resolve_coverage_files(
+    workspace: str,
+    configured_paths: str,
+) -> list[str]:
+    """Resolve every report path inside the GitHub workspace."""
+    return [
+        _resolve_coverage_file(workspace, configured_path)
+        for configured_path in _split_coverage_files(configured_paths)
+    ]
 
 
 def _coverage_badge_enabled() -> bool:
@@ -225,27 +306,41 @@ def _publish_pr_comment(summary: str) -> None:
 def run_action():
     """Run Coverage Gate inside GitHub Actions."""
     workspace = os.environ["GITHUB_WORKSPACE"]
-    coverage_file = _resolve_coverage_file(
+    coverage_files = _resolve_coverage_files(
         workspace,
         os.environ["COVERAGE_FILE"],
     )
+    coverage_file = coverage_files[0]
 
     threshold = float(os.environ["COVERAGE_THRESHOLD"])
     warning_margin = float(os.environ["WARNING_MARGIN"])
     changed_lines_threshold = float(os.environ.get("CHANGED_LINES_THRESHOLD", "0"))
+
+    component_thresholds = parse_component_thresholds(
+        os.environ.get("COMPONENT_THRESHOLDS", "")
+    )
 
     baseline_text = os.environ.get("BASELINE_COVERAGE", "")
     baseline_coverage = float(baseline_text) if baseline_text else None
     max_regression = float(os.environ["MAX_REGRESSION"])
 
     logger.debug("[Coverage Gate] Starting coverage check...")
-    logger.debug("[Coverage Gate] Coverage report: %s", coverage_file)
+    logger.debug(
+        "[Coverage Gate] Coverage report(s): %s",
+        ", ".join(coverage_files),
+    )
     logger.debug("[Coverage Gate] Required threshold: %.2f%%", threshold)
     logger.debug("[Coverage Gate] Warning margin: %.2f%%", warning_margin)
     logger.debug(
         "[Coverage Gate] Changed-lines threshold: %.2f%%",
         changed_lines_threshold,
     )
+
+    if component_thresholds:
+        logger.info(
+            "[Coverage Gate] Configured %d component coverage threshold(s).",
+            len(component_thresholds),
+        )
 
     if baseline_coverage is not None:
         logger.info(
@@ -257,7 +352,20 @@ def run_action():
             max_regression,
         )
 
-    metrics = _parse_coverage_report(coverage_file)
+    line_coverage = None
+
+    if len(coverage_files) == 1:
+        metrics = _parse_coverage_report(coverage_file)
+    else:
+        logger.info(
+            "[Coverage Gate] Merging %d coverage reports.",
+            len(coverage_files),
+        )
+        line_coverage = merge_line_coverage(
+            coverage_files,
+            workspace,
+        )
+        metrics = calculate_coverage_metrics(line_coverage)
 
     if _coverage_badge_enabled():
         configured_badge_path = (
@@ -322,10 +430,11 @@ def run_action():
 
                 changed_lines = parse_changed_lines(diff_result.stdout)
 
-                line_coverage = parse_line_coverage(
-                    coverage_file,
-                    root_dir=workspace,
-                )
+                if line_coverage is None:
+                    line_coverage = parse_line_coverage(
+                        coverage_file,
+                        root_dir=workspace,
+                    )
 
                 changed_coverage = generate_changed_coverage_report(
                     changed_lines,
@@ -386,21 +495,75 @@ def run_action():
         changed_result.message,
     )
 
+    component_results = []
+
+    if component_thresholds:
+        if line_coverage is None:
+            line_coverage = parse_line_coverage(
+                coverage_file,
+                root_dir=workspace,
+            )
+
+        component_results = evaluate_component_coverage(
+            line_coverage,
+            component_thresholds,
+        )
+
+        for component_result in component_results:
+            logger.info(
+                "[Coverage Gate] %s",
+                component_result.message,
+            )
+
     final_passed = result.passed and changed_result.passed
+    final_passed = final_passed and all(
+        component.passed for component in component_results
+    )
 
     trend_enabled = _coverage_trend_enabled()
     trend_data = None
 
+    branch_coverage_kwargs = {}
+    if (
+        getattr(metrics, "covered_branches", None) is not None
+        and getattr(metrics, "valid_branches", None) is not None
+    ):
+        branch_coverage_kwargs = {
+            "covered_branches": getattr(metrics, "covered_branches", None),
+            "valid_branches": getattr(metrics, "valid_branches", None),
+        }
+
     if trend_enabled:
         trend_data = _process_coverage_trend(result.coverage)
 
-    if trend_enabled:
+    if component_results:
+        if trend_enabled:
+            summary = generate_summary(
+                result,
+                metrics.file_coverage,
+                changed_coverage,
+                changed_result,
+                trend_data=trend_data,
+                component_results=component_results,
+                **branch_coverage_kwargs,
+            )
+        else:
+            summary = generate_summary(
+                result,
+                metrics.file_coverage,
+                changed_coverage,
+                changed_result,
+                component_results=component_results,
+                **branch_coverage_kwargs,
+            )
+    elif trend_enabled:
         summary = generate_summary(
             result,
             metrics.file_coverage,
             changed_coverage,
             changed_result,
             trend_data=trend_data,
+            **branch_coverage_kwargs,
         )
     else:
         summary = generate_summary(
@@ -408,6 +571,7 @@ def run_action():
             metrics.file_coverage,
             changed_coverage,
             changed_result,
+            **branch_coverage_kwargs,
         )
 
     summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
@@ -474,6 +638,16 @@ def run_action():
         "Changed-line enforcement: %s",
         "PASSED" if changed_result.passed else "FAILED",
     )
+
+    if component_results:
+        logger.info("Component coverage results:")
+
+        for component_result in component_results:
+            logger.info(
+                "  %s",
+                component_result.message,
+            )
+
     logger.info(
         "[Coverage Gate] RESULT: %s",
         "PASSED" if final_passed else "FAILED",

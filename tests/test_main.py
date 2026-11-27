@@ -13,6 +13,12 @@ def configure_action_environment(monkeypatch, tmp_path, threshold="80"):
     summary_path = workspace / "summary.md"
     output_path = workspace / "github-output.txt"
 
+    coverage_report = workspace / "coverage.xml"
+    coverage_report.write_text(
+        '<?xml version="1.0" ?><coverage line-rate="0.85" branch-rate="0.8"></coverage>',
+        encoding="utf-8",
+    )
+
     monkeypatch.setenv("GITHUB_WORKSPACE", str(workspace))
     monkeypatch.setenv("COVERAGE_FILE", "coverage.xml")
     monkeypatch.setenv("COVERAGE_THRESHOLD", threshold)
@@ -497,8 +503,15 @@ def test_action_rejects_absolute_coverage_path_outside_workspace(
 
 
 def test_action_accepts_nested_coverage_file_path(monkeypatch, tmp_path):
-    _, _, _, _ = configure_action_environment(monkeypatch, tmp_path)
+    configure_action_environment(monkeypatch, tmp_path)
     monkeypatch.setenv("COVERAGE_FILE", "reports/coverage.xml")
+
+    nested_report = tmp_path / "reports" / "coverage.xml"
+    nested_report.parent.mkdir(parents=True, exist_ok=True)
+    nested_report.write_text(
+        '<?xml version="1.0" ?><coverage line-rate="0.85" branch-rate="0.8"></coverage>',
+        encoding="utf-8",
+    )
 
     parsed_paths = []
 

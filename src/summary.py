@@ -14,6 +14,24 @@ def _format_filename(filename):
     return f"`{escaped_filename}`"
 
 
+def _append_branch_coverage(summary_lines, covered_branches, valid_branches):
+    """Add branch coverage when reliable branch counts are available."""
+    if covered_branches is None or valid_branches is None or valid_branches <= 0:
+        return
+
+    branch_percentage = covered_branches / valid_branches * 100
+
+    summary_lines.extend(
+        [
+            "",
+            "### Branch Coverage",
+            "",
+            f"- **Branch coverage:** {branch_percentage:.1f}%",
+            f"- **Covered branches:** {covered_branches}/{valid_branches}",
+        ]
+    )
+
+
 def _append_coverage_trend(summary_lines, trend_data):
     """Add optional historical coverage trend details to the summary."""
     if trend_data is None:
@@ -63,17 +81,65 @@ def _append_coverage_trend(summary_lines, trend_data):
     )
 
 
+def _append_component_coverage(summary_lines, component_results):
+    """Add component-specific coverage results to the summary."""
+    if not component_results:
+        return
+
+    logger.info(
+        "Adding component coverage details for %d components.",
+        len(component_results),
+    )
+
+    summary_lines.extend(
+        [
+            "",
+            "### Component Coverage",
+            "",
+            "| Component | Coverage | Required | Executable lines | Status |",
+            "|---|---:|---:|---:|---|",
+        ]
+    )
+
+    for component in component_results:
+        if component.coverage is None:
+            coverage_text = "Not available"
+            status = "FAIL"
+        else:
+            coverage_text = f"{component.coverage:.1f}%"
+            status = "PASS" if component.passed else "FAIL"
+
+        summary_lines.append(
+            f"| {_format_filename(component.component)} | "
+            f"{coverage_text} | "
+            f"{component.threshold:.1f}% | "
+            f"{component.covered_lines}/{component.total_lines} | "
+            f"{status} |"
+        )
+
+        summary_lines.append(f"\n**Details:** {component.message}")
+
+    logger.debug("Component coverage summary section added.")
+
+
 def generate_summary(
     result,
     file_coverage=None,
     changed_coverage=None,
     changed_enforcement=None,
     trend_data=None,
+    component_results=None,
+    covered_branches=None,
+    valid_branches=None,
 ):
     logger.info("Generating Coverage Gate summary.")
 
-    final_passed = result.passed and (
-        changed_enforcement is None or changed_enforcement.passed
+    components_passed = all(component.passed for component in (component_results or []))
+
+    final_passed = (
+        result.passed
+        and (changed_enforcement is None or changed_enforcement.passed)
+        and components_passed
     )
 
     status = "PASS" if final_passed else "FAIL"
@@ -116,6 +182,12 @@ def generate_summary(
         logger.debug("No coverage regression detected for the summary.")
         summary_lines.append("- **Regression:** No — within the allowed limit")
 
+    _append_branch_coverage(
+        summary_lines,
+        covered_branches,
+        valid_branches,
+    )
+
     if changed_enforcement is not None:
         summary_lines.extend(
             [
@@ -147,6 +219,7 @@ def generate_summary(
                 ]
             )
 
+    _append_component_coverage(summary_lines, component_results)
     _append_coverage_trend(summary_lines, trend_data)
 
     if file_coverage:

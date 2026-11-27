@@ -5,7 +5,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from src.go_parser import parse_go_coverprofile
+from src.istanbul_parser import parse_istanbul_json
+from src.jacoco_parser import parse_jacoco_xml
 from src.logger_config import configure_logger
+from src.opencover_parser import parse_opencover_xml
 
 logger = configure_logger(__name__)
 
@@ -14,6 +18,18 @@ logger = configure_logger(__name__)
 class CoverageMetrics:
     total_coverage: float
     file_coverage: dict[str, float] = field(default_factory=dict)
+    covered_branches: int | None = None
+    valid_branches: int | None = None
+
+    @property
+    def branch_coverage(self) -> float | None:
+        if self.covered_branches is None or self.valid_branches is None:
+            return None
+
+        if self.valid_branches == 0:
+            return None
+
+        return self.covered_branches / self.valid_branches * 100
 
 
 def parse_cobertura(file_path: str) -> CoverageMetrics:
@@ -119,9 +135,10 @@ def parse_lcov(file_path: str, root_dir: str | Path | None = None) -> CoverageMe
     if not content.strip():
         raise ValueError("Empty LCOV coverage report.")
 
-    total_found = 0
-    total_hit = 0
-    file_coverage: dict[str, float] = {}
+    file_lines: dict[str, dict[int, bool]] = {}
+    fallback_counts: dict[str, tuple[int, int]] = {}
+    detailed_sources: set[str] = set()
+    summary_only_sources: set[str] = set()
     found_source = False
     found_line_data = False
 
@@ -181,6 +198,13 @@ def parse_lcov(file_path: str, root_dir: str | Path | None = None) -> CoverageMe
             continue
 
         if lines:
+            if source_file in summary_only_sources:
+                raise ValueError(
+                    f"Ambiguous LCOV records for {source_file}: "
+                    "detailed and summary-only records cannot be combined."
+                )
+
+            detailed_sources.add(source_file)
             record_found = len(lines)
             record_hit = sum(lines.values())
 
@@ -191,6 +215,13 @@ def parse_lcov(file_path: str, root_dir: str | Path | None = None) -> CoverageMe
                 raise ValueError(f"Invalid line coverage counts for {source_file}.")
 
         elif lines_found is not None and lines_hit is not None:
+            if source_file in detailed_sources or source_file in summary_only_sources:
+                raise ValueError(
+                    f"Ambiguous LCOV records for {source_file}: "
+                    "repeated summary-only records cannot be merged."
+                )
+
+            summary_only_sources.add(source_file)
             record_found = lines_found
             record_hit = lines_hit
 
@@ -202,16 +233,44 @@ def parse_lcov(file_path: str, root_dir: str | Path | None = None) -> CoverageMe
 
         found_line_data = found_line_data or record_found > 0
 
-        total_found += record_found
-        total_hit += record_hit
+        if lines:
+            merged_lines = file_lines.setdefault(source_file, {})
 
-        if record_found:
-            file_coverage[source_file] = record_hit / record_found * 100
+            for line_number, covered in lines.items():
+                merged_lines[line_number] = (
+                    merged_lines.get(line_number, False) or covered
+                )
+        else:
+            fallback_counts[source_file] = (record_found, record_hit)
 
     if not found_source:
         raise ValueError("Missing line coverage data in LCOV report.")
 
-    if not found_line_data or total_found == 0:
+    if not found_line_data:
+        raise ValueError("Missing line coverage data in LCOV report.")
+
+    file_coverage: dict[str, float] = {}
+    total_found = 0
+    total_hit = 0
+
+    for source_file in set(file_lines) | set(fallback_counts):
+        merged_lines = file_lines.get(source_file, {})
+        fallback_found, fallback_hit = fallback_counts.get(
+            source_file,
+            (0, 0),
+        )
+
+        record_found = len(merged_lines) + fallback_found
+        record_hit = sum(merged_lines.values()) + fallback_hit
+
+        if record_found == 0:
+            continue
+
+        total_found += record_found
+        total_hit += record_hit
+        file_coverage[source_file] = record_hit / record_found * 100
+
+    if total_found == 0:
         raise ValueError("Missing line coverage data in LCOV report.")
 
     total_coverage = total_hit / total_found * 100
@@ -474,7 +533,12 @@ def _parse_lcov_line_data(file_path: str) -> dict[str, dict[int, bool]]:
                 lines[line_number] = lines.get(line_number, False) or hits > 0
 
         if source_file is not None:
-            file_lines[source_file] = lines
+            merged_lines = file_lines.setdefault(source_file, {})
+
+            for line_number, covered in lines.items():
+                merged_lines[line_number] = (
+                    merged_lines.get(line_number, False) or covered
+                )
 
     return file_lines
 
@@ -483,7 +547,7 @@ def _normalize_lcov_line_data(
     raw_file_lines: dict[str, dict[int, bool]],
     working_directory: Path,
 ) -> dict[str, dict[int, bool]]:
-    """Normalize LCOV source filenames."""
+    """Normalize LCOV filenames and reject duplicate normalized paths."""
     normalized_lines = {}
 
     for filename, lines in raw_file_lines.items():
@@ -492,6 +556,12 @@ def _normalize_lcov_line_data(
             [],
             working_directory,
         )
+
+        if normalized_filename in normalized_lines:
+            raise ValueError(
+                "Duplicate normalized filename in LCOV report: "
+                f"{normalized_filename}"
+            )
 
         normalized_lines[normalized_filename] = lines
 
@@ -523,6 +593,56 @@ def _normalize_json_line_data(
     return normalized_lines
 
 
+def _normalize_go_line_data(
+    raw_file_lines: dict[str, dict[int, bool]],
+    working_directory: Path,
+) -> dict[str, dict[int, bool]]:
+    """Normalize Go source filenames and reject paths that collide."""
+    normalized_lines = {}
+
+    for filename, lines in raw_file_lines.items():
+        normalized_filename = _normalize_coverage_filename(
+            filename,
+            [],
+            working_directory,
+        )
+
+        if normalized_filename in normalized_lines:
+            raise ValueError(
+                "Duplicate normalized filename in Go coverage report: "
+                f"{normalized_filename}"
+            )
+
+        normalized_lines[normalized_filename] = lines
+
+    return normalized_lines
+
+
+def _normalize_opencover_line_data(
+    raw_file_lines: dict[str, dict[int, bool]],
+    working_directory: Path,
+) -> dict[str, dict[int, bool]]:
+    """Normalize OpenCover filenames and reject paths that collide."""
+    normalized_lines = {}
+
+    for filename, lines in raw_file_lines.items():
+        normalized_filename = _normalize_coverage_filename(
+            filename,
+            [],
+            working_directory,
+        )
+
+        if normalized_filename in normalized_lines:
+            raise ValueError(
+                "Duplicate normalized filename in OpenCover report: "
+                f"{normalized_filename}"
+            )
+
+        normalized_lines[normalized_filename] = lines
+
+    return normalized_lines
+
+
 def parse_line_coverage(
     file_path: str,
     root_dir: str | Path | None = None,
@@ -533,11 +653,39 @@ def parse_line_coverage(
         Path(root_dir).resolve() if root_dir is not None else Path.cwd().resolve()
     )
 
+    if coverage_file.suffix.lower() in {".out", ".coverprofile"}:
+        go_report = parse_go_coverprofile(str(coverage_file))
+
+        return _normalize_go_line_data(
+            go_report.line_coverage,
+            working_directory,
+        )
+
     if coverage_file.suffix.lower() == ".info":
         raw_file_lines = _parse_lcov_line_data(str(coverage_file))
         return _normalize_lcov_line_data(raw_file_lines, working_directory)
 
     if coverage_file.suffix.lower() == ".json":
+        try:
+            json_report = json.loads(coverage_file.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            json_report = None
+
+        is_istanbul = isinstance(json_report, dict) and any(
+            isinstance(file_data, dict)
+            and ("statementMap" in file_data or "s" in file_data)
+            for file_data in json_report.values()
+        )
+
+        if is_istanbul:
+            logger.debug("Detected Istanbul/NYC JSON for changed-line coverage.")
+            _, raw_file_lines = parse_istanbul_json(str(coverage_file))
+
+            return _normalize_json_line_data(
+                raw_file_lines,
+                working_directory,
+            )
+
         report = _load_coverage_json(str(coverage_file))
         raw_file_lines = _parse_json_line_data(report)
 
@@ -555,6 +703,52 @@ def parse_line_coverage(
     logger.debug("Line coverage XML parsed successfully: %s", file_path)
 
     root = tree.getroot()
+
+    if root.tag == "CoverageSession":
+        logger.debug("Detected OpenCover XML for changed-line coverage.")
+
+        _, opencover_file_lines = parse_opencover_xml(str(coverage_file))
+
+        normalized_lines = _normalize_opencover_line_data(
+            opencover_file_lines,
+            working_directory,
+        )
+
+        logger.info(
+            "OpenCover line coverage processed: %d source files found.",
+            len(normalized_lines),
+        )
+
+        return normalized_lines
+
+    if root.tag == "report":
+        logger.debug("Detected JaCoCo XML for changed-line coverage.")
+
+        _, jacoco_file_lines = parse_jacoco_xml(str(coverage_file))
+
+        normalized_lines = {}
+
+        for filename, lines in jacoco_file_lines.items():
+            normalized_filename = _normalize_coverage_filename(
+                filename,
+                [],
+                working_directory,
+            )
+
+            if normalized_filename in normalized_lines:
+                raise ValueError(
+                    "Duplicate normalized filename in JaCoCo report: "
+                    f"{normalized_filename}"
+                )
+
+            normalized_lines[normalized_filename] = lines
+
+        logger.info(
+            "JaCoCo line coverage processed: %d source files found.",
+            len(normalized_lines),
+        )
+
+        return normalized_lines
 
     if root.tag != "coverage":
         logger.error("Unsupported coverage report root: %s", root.tag)
