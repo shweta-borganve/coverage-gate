@@ -1,41 +1,23 @@
 # Coverage Gate
 
-A reusable GitHub Action that checks code coverage, prevents coverage regressions, and helps maintain code quality across projects and monorepos.
+A lightweight GitHub Action to enforce code coverage, detect regressions, and monitor coverage changes in your repository.
 
 ## Features
 
 - Overall and changed-line coverage enforcement
 - Multiple coverage report parsing and merging
-- Per-file and per-directory coverage thresholds
-- Separate branch coverage reporting when available
+- File and directory-specific thresholds
 - Coverage regression detection
+- Branch coverage reporting
 - Pull request comments and GitHub Actions summaries
-- Coverage history and SVG badges
+- Coverage history using Actions artifacts
+- SVG coverage badge generation
 - Composite and Docker Action support
-
-## Supported Formats
-
-| Format | Report |
-|---|---|
-| Cobertura XML | `coverage.xml` |
-| LCOV | `coverage.info` |
-| coverage.py JSON | `coverage.json` |
-| JaCoCo XML | `jacoco.xml` |
-| Go coverprofile | `coverage.out` |
-| OpenCover XML | `opencover.xml` |
-| Istanbul / NYC JSON | `coverage-final.json` |
-
-The Composite Action supports the listed formats. The Docker Action currently lists Cobertura XML, JaCoCo XML, LCOV, Go coverprofile, and coverage.py JSON.
+- Local-first execution without an external coverage service
 
 ## Quick Start
 
-Generate a report:
-
-```bash
-pytest --cov=src --cov-report=xml:coverage.xml
-```
-
-Add to `.github/workflows/ci.yml`:
+Generate a coverage report and add this step to your GitHub Actions workflow:
 
 ```yaml
 - name: Check coverage
@@ -46,116 +28,107 @@ Add to `.github/workflows/ci.yml`:
     github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-Use a published version tag instead of `@main` when available.
+Use `@v1` after the next release updates the major-version tag.
+
+## Supported Formats
+
+| Format | Composite | Docker |
+|---|:---:|:---:|
+| Cobertura XML | Yes | Yes |
+| JaCoCo XML | Yes | Yes |
+| OpenCover XML | Yes | No |
+| LCOV | Yes | Yes |
+| coverage.py JSON | Yes | Yes |
+| Go coverprofile | Yes | Yes |
+| Istanbul / NYC JSON | Yes | No |
+
+Multiple reports can be supplied as comma-separated paths. Duplicate source lines are merged and counted once.
 
 ## Configuration
 
-### Multiple Reports (Docker Action)
-
-Provide comma-separated report paths. Coverage Gate combines covered and valid line counts and counts duplicate source lines only once.
-
+**Component thresholds**
 ```yaml
-- name: Check coverage
-  uses: shweta-borganve/coverage-gate/docker@main
-  with:
-    coverage-file: 'coverage.xml,coverage.info'
-    threshold: '80'
+component-thresholds: |
+  {
+    "src/api/": 90,
+    "src/database/": 85
+  }
 ```
 
-### Component Thresholds
-
-Set different minimum coverage percentages for repository-relative files or directories:
-
+**Changed-line coverage**
 ```yaml
-- name: Check component coverage
-  uses: shweta-borganve/coverage-gate@main
-  with:
-    coverage-file: coverage.xml
-    threshold: '80'
-    component-thresholds: |
-      {
-        "src/api/": 90,
-        "src/database/": 85
-      }
+changed-lines-threshold: '90'
 ```
 
-### Changed-Line Coverage
+Changed-line enforcement applies to pull requests, not push or workflow-dispatch events.
 
+**Regression detection**
 ```yaml
-with:
-  coverage-file: coverage.xml
-  threshold: '80'
-  changed-lines-threshold: '90'
+baseline-coverage: '85'
+max-regression: '5'
 ```
 
-### Regression Detection
-
+**Coverage history**
 ```yaml
-with:
-  coverage-file: coverage.xml
-  threshold: '80'
-  baseline-coverage: '85'
-  max-regression: '5'
+enable-coverage-trend: 'true'
 ```
 
-### Coverage Badge
+Uses GitHub Actions artifacts to compare coverage with previous runs of the same branch and workflow. The default history token is `github.token`.
 
+**Coverage badge**
 ```yaml
-with:
-  coverage-file: coverage.xml
-  enable-coverage-badge: 'true'
-  badge-output-path: coverage-badge.svg
+enable-coverage-badge: 'true'
+badge-output-path: coverage-badge.svg
 ```
 
 ## Inputs
 
-| Input | Default | Purpose |
+| Input | Default | Description |
 |---|---|---|
-| `coverage-file` | Required | Coverage report path(s) |
+| `coverage-file` | Required | One or more comma-separated report paths |
 | `threshold` | `80` | Minimum overall coverage (%) |
 | `component-thresholds` | Empty | JSON file/directory thresholds |
 | `changed-lines-threshold` | `0` | Minimum changed-line coverage (%) |
 | `warning-margin` | `5` | Warning margin (percentage points) |
-| `baseline-coverage` | Empty | Baseline for regression checks |
+| `baseline-coverage` | Empty | Regression baseline (%) |
 | `max-regression` | `5` | Maximum allowed regression |
-| `github-token` | Empty | Pull request comment token |
+| `github-token` | Empty | Token for pull request comments |
 | `enable-pr-comment` | `true` | Enable pull request comments |
-| `enable-coverage-trend` | `false` | Track coverage history |
-| `history-token` | Empty | Token for history operations |
-| `enable-coverage-badge` | `false` | Generate SVG badge |
-| `badge-output-path` | `coverage-badge.svg` | Badge output location |
+| `enable-coverage-trend` | `false` | Enable coverage history |
+| `history-token` | `github.token` | Token for reading history artifacts |
+| `enable-coverage-badge` | `false` | Generate an SVG badge |
+| `badge-output-path` | `coverage-badge.svg` | Badge output path |
 
 ## Outputs
 
 | Output | Description |
 |---|---|
-| `coverage` | Measured overall coverage (%) |
-| `threshold` | Configured minimum threshold |
+| `coverage` | Overall coverage (%) |
+| `threshold` | Configured coverage threshold |
 | `passed` | Overall check result |
 | `changed-lines-coverage` | Changed-line coverage (%) |
 | `changed-lines-passed` | Changed-line check result |
 
-The Docker Action exposes `coverage`, `changed-lines-coverage`, `changed-lines-passed`, and `passed`.
-
-Branch coverage is displayed separately in the summary when reliable branch data is available. It does not replace line coverage enforcement.
+Branch coverage is reported separately when available; it is not currently enforced.
 
 ## Permissions
 
-For pull request comments:
+Grant only the permissions needed by enabled features:
 
 ```yaml
 permissions:
   contents: read
-  pull-requests: write
+  pull-requests: write  # PR comments
+  actions: read         # Coverage history
 ```
 
-Coverage history may also require `actions: read` and `actions: write`.
+The `github-token` input must be supplied for PR comments. The `history-token` defaults to `github.token`.
 
 ## Docker Action
 
-Use `shweta-borganve/coverage-gate/docker@main` for the Docker version.
+Use `shweta-borganve/coverage-gate/docker@main`.
 
-**Requirement:** A working Docker installation and daemon on the GitHub Actions runner.
+Requires a GitHub Actions runner with Docker installed and running. Supports the five Docker formats listed above, multiple reports, and component thresholds.
 
 See [Docker documentation](docker/README.md).
 
@@ -164,24 +137,20 @@ See [Docker documentation](docker/README.md).
 ```bash
 pip install -r requirements-dev.txt
 pytest -q
-ruff check src tests
-black --check src tests
+ruff check .
+black --check .
 isort --check-only src tests
 ```
 
-## Project Structure
-
-- `src/` – Core logic and coverage parsers
-- `docker/` – Docker Action
-- `tests/` – Automated tests and fixtures
-- `docs/` – Project documentation
-
 ## Documentation
 
-- [Roadmap](docs/ROADMAP.md)
 - [Compatibility](docs/compatibility.md)
 - [Docker Action](docker/README.md)
+- [Workflow Examples](docs/workflow-examples.md)
+- [Roadmap](docs/ROADMAP.md)
 
-## Repository
+## License
+
+[MIT License](LICENSE)
 
 [GitHub Repository](https://github.com/shweta-borganve/coverage-gate)
