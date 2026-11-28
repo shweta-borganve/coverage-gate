@@ -1,14 +1,10 @@
 name: 'Coverage Gate'
-feature/public-release-preparation
 author: 'Shweta Boraganve'
 description: 'Check coverage reports and enforce global, changed-line, and component-specific thresholds'
 
 branding:
   icon: 'activity'
   color: 'blue'
-
-description: 'Check coverage reports and enforce global, changed-line, and component-specific thresholds'
-main
 
 inputs:
   coverage-file:
