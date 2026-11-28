@@ -38,7 +38,20 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npx semantic-release
 
+      - name: Create GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@f418cff399f7aef4c2f0ad47e25ca7a6abbdd6fc # v3.4.0
+        with:
+          app-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: coverage-gate
+          permission-contents: write
+          permission-workflows: write
+
       - name: Update major version tag
+        env:
+          APP_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           set -euo pipefail
 
@@ -53,7 +66,16 @@ jobs:
 
           if [[ "$latest_release_tag" == v1.* ]]; then
             git tag --force v1 "$latest_release_tag"
-            git push origin refs/tags/v1 --force
+
+            auth_header="$(
+              printf 'x-access-token:%s' "$APP_TOKEN" | base64 -w0
+            )"
+
+            git \
+              -c http.https://github.com/.extraheader= \
+              -c http.https://github.com/.extraheader="AUTHORIZATION: basic $auth_header" \
+              push origin refs/tags/v1 --force
+
             echo "Updated v1 to $latest_release_tag"
           else
             echo "No v1 release found; leaving v1 unchanged."
