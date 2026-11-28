@@ -46,7 +46,7 @@ jobs:
 
           latest_release_tag="$(
             git tag --list |
-              grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' |
+              grep -E '^v1\.[0-9]+\.[0-9]+$' |
               sort -V |
               tail -n 1 || true
           )"
@@ -56,5 +56,5 @@ jobs:
             git push origin refs/tags/v1 --force
             echo "Updated v1 to $latest_release_tag"
           else
-            echo "Latest release is ${latest_release_tag:-unknown}; leaving v1 unchanged."
+            echo "No v1 release found; leaving v1 unchanged."
           fi
