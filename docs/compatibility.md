@@ -2,117 +2,141 @@
 
 ## 1. Supported Environments
 
-- The GitHub Action uses the Composite Action runtime and sets up Python 3.11.
-- GitHub-hosted Ubuntu Linux runners are the initial officially supported environment for the GitHub Action.
+- The primary GitHub Action is a Composite Action.
+- The Composite Action sets up Python 3.11.
+- GitHub-hosted Ubuntu Linux runners are the officially tested environment.
 - The CI test matrix covers Python 3.11, 3.12, and 3.13.
 - Linting and formatting checks run on Python 3.12.
-- Docker images are built and tested in CI.
-- The current GitHub Action is a Composite Action and does not require Docker to execute the action itself.
+- Docker images and the Docker Action are built and tested in CI.
+- The Composite Action does not require Docker to execute.
 
 ## 2. Supported Coverage Report Formats
 
-Coverage Gate supports these report formats:
+Coverage Gate supports the following report formats:
 
-- **Cobertura XML:** identified by XML content with a `coverage` root element.
-- **LCOV:** identified by the `.info` file extension.
-- **coverage.py JSON:** identified by the `.json` file extension.
+| Format | File type | Identification |
+|---|---|---|
+| Cobertura | XML | `coverage` root element |
+| JaCoCo | XML | `report` root element |
+| OpenCover | XML | `CoverageSession` root element |
+| LCOV | Text | `.info` extension |
+| coverage.py | JSON | Coverage.py JSON structure |
+| Go coverprofile | Text | `.out` or `.coverprofile` extension |
+| Istanbul / NYC | JSON | Istanbul statement coverage structure |
 
-JaCoCo XML is not currently supported.
+XML namespaces are supported when identifying supported XML report roots.
 
-### Cobertura XML
+### Composite Action
 
-- The overall coverage report must have a `coverage` root element.
-- The root element must contain a numeric `line-rate` attribute.
-- The `line-rate` value must be finite and between `0` and `1`, inclusive.
-- Per-file line coverage is calculated from valid line entries.
+The Composite Action supports all seven formats listed above.
 
-### LCOV
+### Docker Action
 
-- LCOV reports use the `.info` file extension.
-- Source files are identified by `SF` records.
-- Line coverage is read from `DA` records or validated `LF` and `LH` counts.
-- The report must contain source and usable line coverage data.
-- Invalid or inconsistent line counts are rejected.
+The Docker Action supports:
 
-### coverage.py JSON
+- Cobertura XML
+- JaCoCo XML
+- LCOV
+- Go coverprofile
+- coverage.py JSON
 
-- JSON reports use the `.json` file extension.
-- The report must contain `totals` and `files` objects.
-- Overall coverage is calculated using `covered_lines` and `num_statements`.
-- Per-file coverage uses `executed_lines`, `missing_lines`, and file summary data.
-- Total and per-file line counts must be consistent.
-- Invalid or incomplete line data is rejected.
+OpenCover XML and Istanbul / NYC JSON are not currently documented as supported by the Docker Action.
 
-## 3. Coverage Metrics and Semantics
+## 3. Multiple Coverage Reports
+
+- Multiple report paths can be supplied as a comma-separated list.
+- Each report is parsed using its supported format.
+- Coverage data from the reports is merged before overall coverage is calculated.
+- Duplicate file and line entries are merged.
+- A line is considered covered if any valid report records it as covered.
+- Changed-line coverage uses the merged line-coverage data.
+- Report paths must point to valid supported reports.
+
+## 4. Coverage Metrics and Semantics
 
 ### Overall line coverage
 
-- Cobertura XML uses the root-level `line-rate`.
-- LCOV uses the total covered and found line counts.
-- coverage.py JSON uses `covered_lines` and `num_statements`.
-- Coverage values are converted to percentages.
-- Threshold and regression checks operate on coverage percentages.
+- Overall line coverage is calculated from covered and total executable lines.
+- Coverage values are represented as percentages.
+- Global threshold and regression checks operate on line coverage.
+- The parser uses the report format's supported coverage data to calculate the metrics.
 
-For example, a Cobertura `line-rate` of `0.85` represents 85% overall line coverage.
+For example, 85 covered lines out of 100 executable lines represents 85% line coverage.
 
 ### Per-file line coverage
 
-- Cobertura XML uses valid line entries from each class.
-- LCOV uses source-file records and line-hit data.
-- coverage.py JSON uses executed and missing line lists.
-- A line with a positive hit count is covered; a line with zero hits is uncovered.
-- Duplicate Cobertura or LCOV entries for the same filename and line number are merged. A line is considered covered if any valid entry reports a positive hit count.
-- Per-file percentages are calculated from the unique line numbers collected for each file.
+- Per-file coverage is calculated using the available line-level coverage information.
+- A line with a positive hit count is covered.
+- A line with zero hits is uncovered.
+- Duplicate entries for the same file and line are merged.
+- A line is considered covered if any valid entry reports it as covered.
+
+### Component coverage
+
+- Component thresholds can be configured for repository-relative files or directories.
+- Each configured component is checked against its minimum coverage percentage.
+- Component thresholds are configured using the `component-thresholds` input.
+- Component paths must resolve within the repository workspace.
 
 ### Changed-line coverage
 
-- Changed-line coverage uses individual line-hit information from the report and the relevant source-code diff.
+- Changed-line coverage uses line-level coverage data and the relevant source-code diff.
 - Source filenames are normalized to repository-relative paths when they can be resolved inside the working directory.
 - Unresolvable paths must not be guessed to be repository files.
-- Changed-line coverage is a separate metric from overall line coverage.
+- Changed-line coverage is separate from overall line coverage.
+- Changed-line enforcement applies to pull request checks.
+- When pull request comparison data is unavailable, the action reports the limitation rather than silently treating missing data as successful coverage.
 
 ### Branch coverage
 
+- Branch coverage is reported separately from line coverage when branch data is available.
+- Branch coverage does not replace overall line coverage.
+- Global line-coverage thresholds are not branch-coverage thresholds.
 - Branch coverage is not currently used for enforcement.
-- A report may contain branch-related attributes, but they do not change the overall line-coverage calculation.
 
-## 4. Missing and Invalid Reports
+### Regression detection
+
+- Baseline coverage can be supplied for regression detection.
+- Maximum allowed regression is configurable.
+- Regression checks use coverage percentages and remain separate from changed-line coverage.
+
+## 5. Missing and Invalid Reports
 
 - A missing report file must produce a clear error.
 - Malformed XML or JSON must produce a clear error.
-- A report with an unsupported XML root element must be rejected.
-- A missing, non-numeric, non-finite, or out-of-range Cobertura `line-rate` must be rejected.
-- Invalid LCOV source records, line numbers, hit counts, or inconsistent counts must be rejected.
-- Invalid JSON structures, missing line data, invalid counts, or inconsistent totals must be rejected.
-- Line numbers must be positive integers, and hit counts must be non-negative integers.
+- Unsupported XML root elements must be rejected.
+- Invalid or incomplete report structures must not be treated as valid coverage reports.
+- Invalid line numbers, hit counts, or inconsistent coverage data must be handled safely.
 - Empty or unsupported reports must not be treated as valid coverage reports.
 - Invalid reports must never cause a coverage check to pass silently.
 - Error messages and logs should help identify the report or data that failed.
 
-## 5. Source Paths
+## 6. Source Paths
 
-- The overall coverage parser does not need source paths to calculate the Cobertura root-level coverage percentage.
 - Per-file coverage uses filenames provided by the report.
-- Changed-line analysis may use the Cobertura `<sources>` entries to resolve filenames against the repository working directory.
-- LCOV and JSON source filenames are normalized against the working directory when possible.
+- Changed-line analysis resolves source filenames against the repository working directory when possible.
+- Cobertura source entries may be used when resolving filenames.
+- LCOV, Go, JSON, JaCoCo, and OpenCover source paths are normalized where supported by their parsers.
 - A resolved repository file is represented with a repository-relative path.
-- If a filename cannot be resolved inside the working directory, its original path is preserved rather than inventing a repository-relative path.
-- JSON filenames that collide after normalization are rejected.
+- Paths that cannot be resolved inside the working directory must not be treated as repository files.
+- Path handling must prevent workspace escape through unsafe paths or symlinks.
 - Path handling must be tested on supported environments before its behavior is broadened.
 
-## 6. Compatibility and Testing
+## 7. Compatibility and Testing
 
-- Existing Cobertura behavior must remain compatible as new features are added.
-- Valid and invalid fixtures for every supported report format must be covered by automated tests.
+- Existing report-format behavior must remain compatible as new features are added.
+- Valid and invalid fixtures for supported report formats must be covered by automated tests.
 - Parser changes must test relevant edge cases, including malformed input, duplicate lines, missing attributes, and invalid numeric values.
+- Multiple-report merging must preserve correct coverage semantics.
 - Changes must pass the project test suite and applicable code-quality checks.
 - New report formats must not silently change existing coverage semantics.
 
-## 7. Future Extensions
+## 8. Future Extensions
 
 Potential extensions include:
 
-- JaCoCo XML report parsing.
-- Additional coverage metrics, such as branch coverage enforcement.
+- Additional branch coverage enforcement.
+- Additional report formats.
+- Further compatibility testing across operating systems and execution environments.
 
 Each extension must define its supported input, metric semantics, validation behavior, error handling, and automated tests before release.

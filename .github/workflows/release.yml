@@ -37,3 +37,24 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npx semantic-release
+
+      - name: Update major version tag
+        run: |
+          set -euo pipefail
+
+          git fetch --tags origin
+
+          latest_release_tag="$(
+            git tag --list |
+              grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' |
+              sort -V |
+              tail -n 1 || true
+          )"
+
+          if [[ "$latest_release_tag" == v1.* ]]; then
+            git tag --force v1 "$latest_release_tag"
+            git push origin refs/tags/v1 --force
+            echo "Updated v1 to $latest_release_tag"
+          else
+            echo "Latest release is ${latest_release_tag:-unknown}; leaving v1 unchanged."
+          fi
